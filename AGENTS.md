@@ -2,7 +2,7 @@
 
 ## Module
 
-`go.lumeweb.com/LumeWeb/tracker-protocol`
+`go.lumeweb.com/tracker-protocol`
 
 Go 1.26.
 

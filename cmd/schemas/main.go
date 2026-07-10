@@ -12,7 +12,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"go.lumeweb.com/LumeWeb/tracker-protocol/sia"
+	"go.lumeweb.com/tracker-protocol/sia"
 )
 
 func main() {

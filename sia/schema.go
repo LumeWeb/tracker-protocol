@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/invopop/jsonschema"
-	"go.lumeweb.com/LumeWeb/tracker-protocol"
+	"go.lumeweb.com/tracker-protocol"
 )
 
 // GenerateSchema generates a combined JSON Schema document covering all

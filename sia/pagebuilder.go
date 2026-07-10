@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"go.lumeweb.com/LumeWeb/tracker-protocol"
+	"go.lumeweb.com/tracker-protocol"
 	"go.sia.tech/indexd/slabs"
 )
 

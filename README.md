@@ -76,7 +76,7 @@ go run ./cmd/schemas
 
 ```go
 import (
-    "go.lumeweb.com/LumeWeb/tracker-protocol/sia"
+    "go.lumeweb.com/tracker-protocol/sia"
 )
 
 pb := sia.NewPageBuilder("movie.mp4", "lbryfile", "movie.mp4", dataKey)
