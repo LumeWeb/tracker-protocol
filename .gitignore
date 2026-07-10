@@ -8,7 +8,7 @@
 *.out
 
 # Generated schemas
-schemas/
+/schemas/
 
 # IDE
 .idea/
