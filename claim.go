@@ -14,6 +14,7 @@
 package trackerprotocol
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 )
@@ -53,6 +54,44 @@ func (l *Location) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+// MarshalJSON encodes SourceClaimID as a lowercase hex string.
+func (s SourceClaimID) MarshalJSON() ([]byte, error) {
+	return json.Marshal(hex.EncodeToString(s[:]))
+}
+
+// UnmarshalJSON decodes SourceClaimID from a hex string.
+func (s *SourceClaimID) UnmarshalJSON(b []byte) error {
+	var hexStr string
+	if err := json.Unmarshal(b, &hexStr); err != nil {
+		return err
+	}
+	decoded, err := hex.DecodeString(hexStr)
+	if err != nil {
+		return fmt.Errorf("invalid sourceClaimId: %w", err)
+	}
+	if len(decoded) != SourceClaimIDLen {
+		return fmt.Errorf("sourceClaimId must be %d bytes, got %d", SourceClaimIDLen, len(decoded))
+	}
+	copy(s[:], decoded)
+	return nil
+}
+
+// SourceClaimIDLen is the length of a LBRY ClaimID in bytes.
+// A ClaimID is derived from the claim's outpoint: RIPEMD160(SHA256(tx:vout)).
+const SourceClaimIDLen = 20
+
+// SourceClaimID is the 20-byte ClaimID of the LBRY source claim that this
+// tracker provides an alternative storage source for. It is encoded as a
+// 40-character lowercase hex string in JSON.
+//
+// This field is a verification value, not a discovery value. The client
+// already knows the source claim's ClaimID before querying for trackers
+// (it found the content on LBRY, then computes the tracker name from the
+// ClaimID). When decoding a tracker claim, the client verifies that this
+// field matches the expected source ClaimID — rejecting mismatched or
+// spoofed trackers.
+type SourceClaimID [SourceClaimIDLen]byte
+
 // TrackerClaim is the top-level structure embedded in an 8192-byte claim.
 // It contains everything needed to locate and begin retrieving a file.
 //
@@ -65,6 +104,11 @@ type TrackerClaim struct {
 
 	// Location identifies the storage backend.
 	Location Location `json:"location" jsonschema:"description=Storage backend identifier,enum=sia"`
+
+	// SourceClaimID is the ClaimID of the LBRY source claim this tracker
+	// mirrors. Encoded as 40-char lowercase hex in JSON. Used by clients to
+	// verify the tracker corresponds to the expected source content.
+	SourceClaimID SourceClaimID `json:"sourceClaimId" jsonschema:"description=Hex-encoded 20-byte ClaimID of the LBRY source claim,format=hex,pattern=[0-9a-f]{40}"`
 
 	// DataKey is the encryption key for the file content (AES-256, 32 bytes).
 	// This is always present — even when the manifest is external, the consumer
