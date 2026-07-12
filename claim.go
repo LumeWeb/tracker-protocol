@@ -20,7 +20,7 @@ import (
 )
 
 // ProtocolVersion is the current version of the tracker protocol.
-const ProtocolVersion uint8 = 1
+const ProtocolVersion uint8 = 0
 
 // MaxClaimSize is the maximum serialized size of a TrackerClaim, per LBRY
 // consensus rules. A claim that exceeds this size is invalid.
@@ -99,8 +99,8 @@ type SourceClaimID [SourceClaimIDLen]byte
 // it serializes to a slabs.SlabSlice pointing to the first ManifestPage.
 // The consumer imports the location-specific package to decode it.
 type TrackerClaim struct {
-	// Version is the protocol version. Currently 1.
-	Version uint8 `json:"version" jsonschema:"description=Protocol version,example=1"`
+	// Version is the protocol version. Currently 0.
+	Version uint8 `json:"version" jsonschema:"description=Protocol version,example=0"`
 
 	// Location identifies the storage backend.
 	Location Location `json:"location" jsonschema:"description=Storage backend identifier,enum=sia"`
@@ -108,11 +108,12 @@ type TrackerClaim struct {
 	// SourceClaimID is the ClaimID of the LBRY source claim this tracker
 	// mirrors. Encoded as 40-char lowercase hex in JSON. Used by clients to
 	// verify the tracker corresponds to the expected source content.
-	SourceClaimID SourceClaimID `json:"sourceClaimId" jsonschema:"description=Hex-encoded 20-byte ClaimID of the LBRY source claim,format=hex,pattern=[0-9a-f]{40}"`
+	SourceClaimID SourceClaimID `json:"sourceClaimId" jsonschema:"description=Hex-encoded 20-byte ClaimID of the LBRY source claim,format=hex,pattern=[0-9a-f]{40},type=string"`
 
 	// DataKey is the encryption key for the file content (AES-256, 32 bytes).
 	// This is always present — even when the manifest is external, the consumer
-	// needs this key to decrypt the data. Encoded as base64 in JSON.
+	// needs this key to decrypt the data. Serialized as a JSON array of 32
+	// integers (Go's default for fixed-size byte arrays).
 	DataKey [32]byte `json:"dataKey" jsonschema:"description=AES-256 encryption key for file content,format=byte"`
 
 	// LocationData is the location-specific retrieval data. Its structure

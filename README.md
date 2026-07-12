@@ -66,7 +66,7 @@ graph TD
 
 A **TrackerClaim** is a self-contained, ≤8192-byte JSON descriptor embedded in a blockchain claim. It contains:
 
-- **Version** — protocol version (currently 1)
+- **Version** — protocol version (currently 0)
 - **Location** — storage backend identifier (`"sia"`)
 - **DataKey** — AES-256 encryption key for file content
 - **LocationData** — location-specific retrieval data (e.g. a Sia `SlabSlice` pointing to the first manifest page)
