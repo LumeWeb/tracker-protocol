@@ -7,11 +7,13 @@ import (
 
 func TestRoundTrip_Claim(t *testing.T) {
 	rawData := json.RawMessage(`{"slabs":[{"encryptionKey":"AAAA","minShards":10,"sectors":[{"root":"0000000000000000000000000000000000000000000000000000000000000001","hostKey":"0000000000000000000000000000000000000000000000000000000000000002"}],"offset":0,"length":4194304}]}`)
+	sourceID := SourceClaimID{0xa1, 0xb2, 0xc3, 0xd4, 0xe5, 0xf6, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e}
 	claim := TrackerClaim{
-		Version:      ProtocolVersion,
-		Location:     LocationSia,
-		DataKey:      [32]byte{0x42},
-		LocationData: rawData,
+		Version:       ProtocolVersion,
+		Location:      LocationSia,
+		SourceClaimID: sourceID,
+		DataKey:       [32]byte{0x42},
+		LocationData:  rawData,
 	}
 
 	data, err := EncodeClaim(claim)
@@ -29,6 +31,9 @@ func TestRoundTrip_Claim(t *testing.T) {
 	}
 	if decoded.Location != LocationSia {
 		t.Errorf("location mismatch: %s", decoded.Location)
+	}
+	if decoded.SourceClaimID != sourceID {
+		t.Errorf("sourceClaimId mismatch: %x vs %x", decoded.SourceClaimID, sourceID)
 	}
 	if decoded.DataKey != [32]byte{0x42} {
 		t.Error("dataKey mismatch")
@@ -74,10 +79,11 @@ func TestLocationUnmarshalJSON(t *testing.T) {
 func TestClaimSize_ExceedsMax(t *testing.T) {
 	huge := make([]byte, MaxClaimSize+100)
 	claim := TrackerClaim{
-		Version:      ProtocolVersion,
-		Location:     LocationSia,
-		DataKey:      [32]byte{},
-		LocationData: huge,
+		Version:       ProtocolVersion,
+		Location:      LocationSia,
+		SourceClaimID: SourceClaimID{0x01},
+		DataKey:       [32]byte{},
+		LocationData:  huge,
 	}
 	err := ValidateClaimSize(claim)
 	if err == nil {
