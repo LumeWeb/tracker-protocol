@@ -2,7 +2,6 @@
 
 **Status:** Draft
 **Version:** 0
-**Protocol:** `go.lumeweb.com/tracker-protocol`
 
 ## 1. Purpose
 
@@ -52,7 +51,7 @@ Signature verification is performed client-side.
 
 Only the channel private key holder can produce a valid signature that
 clients will accept. The `#` separator has no special meaning in the claimtrie
-— `@alice` and `@alice#t:abc` are independent nodes.
+- `@alice` and `@alice#t:abc` are independent nodes.
 
 ### 3.2 Global Names (Fallback)
 
@@ -67,7 +66,7 @@ t:<source_claim_id_hex>
 | `<source_claim_id_hex>` | 40-char lowercase hex of the source claim's 20-byte ClaimID |
 
 Any operator may post a global tracker claim. No creator endorsement is
-implied. Multiple claims at the same name coexist — the claimtrie stores all
+implied. Multiple claims at the same name coexist; the claimtrie stores all
 claims; ranking is by effective amount (bid + supports).
 
 ### 3.3 Third-Party Channel-Scoped Names
@@ -96,7 +95,7 @@ treat these identically to global trackers.
 
 ```mermaid
 flowchart TD
-    A[Resolve source claim → get ClaimID] --> B[Compute tracker names]
+    A[Resolve source claim - get ClaimID] --> B[Compute tracker names]
     B --> C["@creator#t:<hex(claim_id)>"]
     B --> D["t:<hex(claim_id)>"]
     C --> E["getclaimsforname (creator-owned)"]
@@ -113,7 +112,7 @@ is obtained from the source claim the client already resolved.
 
 ### 4.2 Claimtrie Constraints
 
-The claimtrie is a key→value store with exact-match lookup only. Discovery
+The claimtrie is a key-value store with exact-match lookup only. Discovery
 relies on deterministic name computation from the source ClaimID.
 
 ### 4.3 Censorship Resistance
@@ -145,7 +144,7 @@ flowchart TD
 ```
 
 A claim **MUST** pass all applicable filters to be considered a valid tracker.
-Filters are ordered by cost — zero-cost checks first, network operations last.
+Filters are ordered by cost: zero-cost checks first, network operations last.
 
 ### 5.2 Download-Time Verification
 
@@ -184,31 +183,14 @@ delay = min(4032, (currentHeight - lastTakeoverHeight) / 32)
 
 Maximum delay: 4032 blocks (~7 days). First claim at a fresh name activates
 immediately (delay = 0). The delay is an anti-takeover mechanism. Anti-spam is
-economic — each claim locks LBC in a UTXO.
+economic; each claim locks LBC in a UTXO.
 
-## 6. Claim Value Schema
+## 6. Claim Value Format
 
-### 6.1 TrackerClaim (v0)
+The tracker claim value is a `TrackerClaim` JSON payload as specified in the
+*Tracker Claim Data Structures Specification*, Section 3.
 
-```json
-{
-  "version": 0,
-  "location": "sia",
-  "sourceClaimId": "a1b2c3d4e5f60102030405060708090a0b0c0d0e",
-  "dataKey": [66, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-  "locationData": { }
-}
-```
-
-| Field | Type | Description |
-|---|---|---|
-| `version` | uint8 | Protocol version (currently 0) |
-| `location` | string | Storage backend identifier (currently `"sia"`) |
-| `sourceClaimId` | string (hex) | 40-char lowercase hex of the source claim's 20-byte ClaimID |
-| `dataKey` | [32]byte | AES-256 encryption key (serialized as JSON array of 32 integers, 66 bytes) |
-| `locationData` | json.RawMessage | Backend-specific retrieval data (e.g. Sia `SlabSlice` pointing to first manifest page) |
-
-### 6.2 sourceClaimId
+### 6.1 sourceClaimId
 
 The `sourceClaimId` field is a **verification value**, not a discovery value.
 The client computes the tracker name from the source ClaimID before querying.
@@ -218,24 +200,12 @@ This detects:
 - Mismatched claims at the same name
 - Claims updated to point at different content
 
-### 6.3 Size Budget
+### 6.2 Size Budget
 
-On-chain claim value hard limit: 8192 bytes (LBRY consensus:
-`MaxClaimScriptSize`; exposed in this protocol as `MaxClaimSize`).
+On-chain claim value **MUST NOT** exceed 8192 bytes (LBRY consensus limit).
 
-| Component | Size (bytes) |
-|---|---|
-| JSON structure (keys, braces, commas) | ~68 |
-| `version` | 1 |
-| `location` | 5 |
-| `sourceClaimId` | 42 |
-| `dataKey` | 66 |
-| `locationData` (root pointer) | 200–400 |
-| **Total** | **~380–580** |
-
-Measured: 426 bytes with a single-slab test payload. Manifest metadata
-(blob entries, storage sector references) is stored off-chain in the manifest
-page chain.
+For a detailed size budget breakdown, see the *Tracker Claim Data Structures
+Specification*, Section 6.
 
 ## 7. Ranking
 
@@ -255,7 +225,7 @@ When multiple valid trackers exist, clients rank by:
 
 1. Download the LBRY source stream (or obtain blobs directly).
 2. Upload each blob to the storage backend.
-3. Build the manifest page chain via `PageBuilder.BuildChain()`.
+3. Build the manifest page chain (see *Sia Backend Specification*, Section 4).
 4. Construct a `TrackerClaim` with root location pointer, data key, and source
    ClaimID.
 5. Post on-chain:
@@ -269,7 +239,7 @@ When storage data expires or moves:
 
 1. Re-upload blobs to the storage backend.
 2. Rebuild the manifest page chain.
-3. `OP_UPDATECLAIM` — spends the old claim UTXO, creates a new one with the
+3. `OP_UPDATECLAIM`: spends the old claim UTXO, creates a new one with the
    same ClaimID but updated value (new `locationData` pointer).
 
 The ClaimID persists across updates. The `sourceClaimId` field remains
