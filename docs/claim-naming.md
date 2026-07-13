@@ -17,77 +17,144 @@ first, then queries for trackers as alternative storage mirrors.
 
 | Term | Definition |
 |---|---|
-| Source claim | The original LBRY stream claim (e.g. `@creator#my-video`) |
+| Source claim | The original LBRY stream claim |
 | Source ClaimID | 20-byte `RIPEMD160(SHA256(tx:vout))` of the source claim's outpoint |
 | Tracker claim | A claim whose value is a `TrackerClaim` JSON payload |
 | Claimtrie name | The on-chain name under which a claim is registered |
 | Manifest | Off-chain page chain containing blob metadata and storage locations |
+| Channel claim | A LBRY channel claim (e.g. `@creator`) |
+| Signing channel | The channel whose private key signs a claim value |
+
+## 2.1. Claim Name Character Restrictions
+
+LBRY consensus rules prohibit the following characters in claim names:
+`=`, `&`, `#`, `:`, `$`, `%`, `?`, `/`, `;`, `\`, and control characters.
+Tracker claim names **MUST** comply with these restrictions.
+
+## 2.2. Channel Scoping
+
+At the claimtrie level, channel-scoped names do not exist. A channel claim
+(`@creator`) and a stream claim (`my-video`) are independent top-level keys.
+The channel association is established through the claim value's signature
+envelope, not through the claim name.
+
+The `@creator#my-video` syntax is a client-side URI convention for resolving
+claims by channel and name. The claimtrie itself has no knowledge of this
+association.
+
+Channel signature verification is performed client-side. The claimtrie stores
+the claim value as opaque bytes and enforces only size constraints.
+
+## 2.3. Claim Value Format
+
+The tracker claim value uses LBRY's signature envelope. The payload is
+TrackerClaim JSON (see *Tracker Claim Data Structures Specification*,
+Section 3) instead of protobuf. Standard LBRY clients treat the value as
+opaque claim metadata; tracker clients parse the JSON payload.
+
+### Unsigned (global trackers)
+
+```
+[0x00] [TrackerClaim JSON bytes]
+```
+
+### Signed (creator-owned or third-party)
+
+```
+[0x01] [20-byte channel ClaimID] [64-byte ECDSA signature] [TrackerClaim JSON bytes]
+```
+
+### Signature Computation
+
+The signature digest is computed as:
+
+```
+digest = SHA-256(tx_input_0_hash || channel_claim_id || tracker_claim_json_bytes)
+```
+
+| Component | Description |
+|---|---|
+| `tx_input_0_hash` | 36-byte OutPoint (32-byte txid + 4-byte vout) of the first transaction input |
+| `channel_claim_id` | 20-byte ClaimID of the signing channel |
+| `tracker_claim_json_bytes` | Raw bytes of the TrackerClaim JSON payload (starting at byte 85) |
+
+The signature is a 64-byte compact ECDSA (r||s) signature over the SECP256k1
+curve. Public-key recovery is not used; the signing channel's public key is
+fetched from its channel claim (see Verification, step 5).
+
+### Verification
+
+To verify a signed tracker claim:
+
+1. Read byte 0. If `0x00`, the claim is unsigned. If `0x01`, proceed.
+2. Read bytes 1-20: the signing channel ClaimID.
+3. Read bytes 21-84: the ECDSA signature.
+4. Read bytes 85+: the TrackerClaim JSON payload.
+5. Fetch the signing channel claim and extract its public key.
+6. Recompute `SHA-256(tx_input_0_hash || channel_claim_id || json_bytes)`.
+7. Verify the signature against the digest using the channel public key.
+
+### Update Behavior
+
+The signature digest includes `tx_input_0_hash`, which is specific to the
+transaction that created the claim. When a claim is updated via
+`OP_UPDATECLAIM`, a new transaction is created with a different first input,
+invalidating the previous signature. The channel private key **MUST** be
+available to re-sign the claim value on each update.
 
 ## 3. Naming Schemes
 
 ### 3.1 Creator-Owned Names (Preferred)
 
 ```
-@creator#t:<source_claim_id_hex>
+t-<source_claim_id_hex>
 ```
+
+The tracker claim is posted as a signed claim value, with the signing channel
+set to the same channel that signed the source claim. The claim name is the
+same as the global name; the channel association is established through the
+signature envelope (see Section 2.3).
 
 | Component | Description |
 |---|---|
-| `@creator` | LBRY channel claim (globally unique in the claimtrie) |
-| `#` | Channel-scoping separator |
 | `t` | Tracker prefix |
-| `:` | Delimiter |
+| `-` | Delimiter |
 | `<source_claim_id_hex>` | 40-char lowercase hex of the source claim's 20-byte ClaimID |
 
 The claim value **MUST** be signed by the same channel key that signed the
-source claim. The channel signature is stored in the claim value bytes.
-Signature verification is performed client-side.
+source claim (see Section 2.3). Signature verification is performed
+client-side.
 
-**Claim value format (signed):**
-
-```
-[0x01] [20-byte channel ClaimID] [64-byte ECDSA signature] [payload...]
-```
-
-Only the channel private key holder can produce a valid signature that
-clients will accept. The `#` separator has no special meaning in the claimtrie
-- `@alice` and `@alice#t:abc` are independent nodes.
+The channel private key holder produces the signature that clients verify.
 
 ### 3.2 Global Names (Fallback)
 
 ```
-t:<source_claim_id_hex>
+t-<source_claim_id_hex>
 ```
 
-| Component | Description |
-|---|---|
-| `t` | Tracker prefix |
-| `:` | Delimiter |
-| `<source_claim_id_hex>` | 40-char lowercase hex of the source claim's 20-byte ClaimID |
+Any operator may post a global tracker claim. The claim value is unsigned
+(`[0x00][payload]`). No creator endorsement is implied. Multiple claims at
+the same name coexist; the claimtrie stores all claims; ranking is by
+effective amount (bid + supports).
 
-Any operator may post a global tracker claim. No creator endorsement is
-implied. Multiple claims at the same name coexist; the claimtrie stores all
-claims; ranking is by effective amount (bid + supports).
+### 3.3 Third-Party Channel-Signed Names
 
-### 3.3 Third-Party Channel-Scoped Names
-
-```
-@thirdparty#t:<source_claim_id_hex>
-```
-
-Permitted. The third party's signature establishes persistent identity but
-carries the same trust level as an unsigned global tracker. Clients **MUST**
-treat these identically to global trackers.
+A third-party operator may post a tracker claim signed by their own channel.
+The third party's signature establishes persistent identity and carries the
+same trust level as an unsigned global tracker. Clients **MUST** treat these
+identically to global trackers.
 
 ### 3.4 Comparison
 
-| Property | Creator-Owned | Global | Third-Party Scoped |
+| Property | Creator-Owned | Global | Third-Party Signed |
 |---|---|---|---|
 | Priority | 1 | 2 | 2 |
 | Creator endorsement | Yes (signature) | No | No |
 | Squatting resistance | Cryptographic | Economic | Cryptographic (identity only) |
-| Multiple operators | No (channel owner only) | Yes | Yes |
-| Discovery | Requires channel name | Deterministic from ClaimID | Requires channel name |
+| Multiple operators | Channel owner only | Yes | Yes |
+| Discovery | Signed by source channel | Deterministic from ClaimID | Deterministic from ClaimID |
+| Claim name | Same as global | `t-<hex>` | Same as global |
 
 ## 4. Discovery
 
@@ -95,20 +162,20 @@ treat these identically to global trackers.
 
 ```mermaid
 flowchart TD
-    A[Resolve source claim - get ClaimID] --> B[Compute tracker names]
-    B --> C["@creator#t:<hex(claim_id)>"]
-    B --> D["t:<hex(claim_id)>"]
-    C --> E["getclaimsforname (creator-owned)"]
-    D --> F["getclaimsforname (global)"]
-    E --> G[Run validation pipeline]
-    F --> G
-    G --> H{Valid tracker found?}
-    H -->|Yes| I[Use tracker]
-    H -->|No| J[No alternative source]
+    A[Resolve source claim - get ClaimID] --> B[Compute tracker name]
+    B --> C["t-<hex(claim_id)>"]
+    C --> D["getclaimsforname"]
+    D --> E[Run validation pipeline]
+    E --> F{Valid tracker found?}
+    F -->|Yes| G[Use tracker]
+    F -->|No| H[No alternative source]
 ```
 
-The client queries creator-owned names first, then global names. The ClaimID
-is obtained from the source claim the client already resolved.
+The client queries `getclaimsforname` with the deterministic tracker name.
+Creator-owned trackers are identified by checking byte 0 of the claim value
+(`0x01` = signed) and verifying the channel ClaimID matches the source
+claim's signing channel (see Section 2.3). The ClaimID is obtained from the
+source claim the client already resolved.
 
 ### 4.2 Claimtrie Constraints
 
@@ -187,8 +254,9 @@ economic; each claim locks LBC in a UTXO.
 
 ## 6. Claim Value Format
 
-The tracker claim value is a `TrackerClaim` JSON payload as specified in the
-*Tracker Claim Data Structures Specification*, Section 3.
+The tracker claim value uses LBRY's signature envelope as specified in
+Section 2.3. The payload is a `TrackerClaim` JSON object (see *Tracker Claim
+Data Structures Specification*, Section 3).
 
 ### 6.1 sourceClaimId
 
@@ -204,15 +272,17 @@ This detects:
 
 On-chain claim value **MUST NOT** exceed 8192 bytes (LBRY consensus limit).
 
-For a detailed size budget breakdown, see the *Tracker Claim Data Structures
-Specification*, Section 6.
+For signed claims, the signature envelope adds 85 bytes overhead (1-byte
+version + 20-byte channel ClaimID + 64-byte signature). For a detailed
+payload size budget breakdown, see *Tracker Claim Data Structures
+Specification*, Section 7.
 
 ## 7. Ranking
 
 When multiple valid trackers exist, clients rank by:
 
-1. **Creator-owned first.** `@creator#t:<id>` trackers carry the creator's
-   cryptographic endorsement.
+1. **Creator-owned first.** Trackers signed by the source claim's channel
+   carry the creator's cryptographic endorsement.
 2. **Effective amount.** Within each tier, sort by bid + supports. Higher
    stake signals confidence. All trackers must pass validation regardless of
    stake.
@@ -229,9 +299,9 @@ When multiple valid trackers exist, clients rank by:
 4. Construct a `TrackerClaim` with root location pointer, data key, and source
    ClaimID.
 5. Post on-chain:
-   - Global: `OP_CLAIMNAME` at name `t:<source_claim_id_hex>`
-   - Creator-owned: `OP_CLAIMNAME` at name `@creator#t:<source_claim_id_hex>`,
-     signed with the channel key
+   - Global: unsigned `OP_CLAIMNAME` at name `t-<source_claim_id_hex>`
+   - Creator-owned: signed `OP_CLAIMNAME` at name `t-<source_claim_id_hex>`,
+     signed with the source claim's channel key
 
 ### 8.2 Update
 
@@ -241,6 +311,8 @@ When storage data expires or moves:
 2. Rebuild the manifest page chain.
 3. `OP_UPDATECLAIM`: spends the old claim UTXO, creates a new one with the
    same ClaimID but updated value (new `locationData` pointer).
+4. For signed claims: re-sign the claim value with the channel private key
+   (see Section 2.3, Update Behavior).
 
 The ClaimID persists across updates. The `sourceClaimId` field remains
 unchanged.
