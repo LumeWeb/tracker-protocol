@@ -9,7 +9,7 @@ import (
 )
 
 func TestPageBuilder_Plan(t *testing.T) {
-	pb := NewPageBuilder("test.mp4", "lbryfile", "test.mp4", [32]byte{0x01})
+	pb := NewPageBuilder("test.mp4", "lbryfile", "test.mp4", trackerprotocol.SourceClaimID{0xa1}, [32]byte{0x01})
 
 	for i := 0; i < 9; i++ {
 		pb.Add(FromSlabSlice(makeSlabSlice(10, 15), "hash", "iv", 1000, i))
@@ -37,7 +37,7 @@ func TestPageBuilder_Plan(t *testing.T) {
 }
 
 func TestPageBuilder_Plan_ZeroBlobs(t *testing.T) {
-	pb := NewPageBuilder("test", "lbryfile", "test", [32]byte{0x01})
+	pb := NewPageBuilder("test", "lbryfile", "test", trackerprotocol.SourceClaimID{0xa1}, [32]byte{0x01})
 	plans := pb.Plan(4)
 	if len(plans) != 1 {
 		t.Fatalf("expected 1 page for zero blobs, got %d", len(plans))
@@ -51,7 +51,7 @@ func TestPageBuilder_Plan_ZeroBlobs(t *testing.T) {
 }
 
 func TestPageBuilder_ManifestPage_FirstPage(t *testing.T) {
-	pb := NewPageBuilder("stream.mp4", "lbryfile", "stream.mp4", [32]byte{0x01})
+	pb := NewPageBuilder("stream.mp4", "lbryfile", "stream.mp4", trackerprotocol.SourceClaimID{0xa1}, [32]byte{0x01})
 	plan := PagePlan{
 		Blobs:     []ManifestBlob{FromSlabSlice(makeSlabSlice(10, 15), "h1", "i1", 1000, 0)},
 		PageIndex: 0,
@@ -80,7 +80,7 @@ func TestPageBuilder_ManifestPage_FirstPage(t *testing.T) {
 }
 
 func TestPageBuilder_ManifestPage_ContinuationPage(t *testing.T) {
-	pb := NewPageBuilder("stream.mp4", "lbryfile", "stream.mp4", [32]byte{0x01})
+	pb := NewPageBuilder("stream.mp4", "lbryfile", "stream.mp4", trackerprotocol.SourceClaimID{0xa1}, [32]byte{0x01})
 	plan := PagePlan{
 		Blobs: []ManifestBlob{
 			FromSlabSlice(makeSlabSlice(10, 15), "h2", "i2", 2000, 1),
@@ -114,28 +114,77 @@ func TestEstimateClaimSize(t *testing.T) {
 	dataKey := [32]byte{0x42}
 	root := makeSlabSlice(10, 15)
 
-	size, err := EstimateClaimSize(dataKey, root)
+	size, err := EstimateClaimSize(trackerprotocol.SourceClaimID{0xa1}, dataKey, root)
 	if err != nil {
 		t.Fatalf("estimate: %v", err)
 	}
 	if size <= 0 {
 		t.Errorf("size should be positive, got %d", size)
 	}
-	if size > trackerprotocol.MaxClaimSize {
-		t.Errorf("size %d exceeds max %d", size, trackerprotocol.MaxClaimSize)
+	if size > trackerprotocol.MaxClaimScriptSize {
+		t.Errorf("size %d exceeds max %d", size, trackerprotocol.MaxClaimScriptSize)
 	}
 }
 
 func TestFitsClaim(t *testing.T) {
 	dataKey := [32]byte{0x42}
 	root := makeSlabSlice(10, 15)
-	if !FitsClaim(dataKey, root) {
+	if !FitsClaim(trackerprotocol.SourceClaimID{0xa1}, dataKey, root) {
 		t.Error("expected claim to fit")
 	}
 }
 
+func TestEstimateClaimSize_IncludesOverhead(t *testing.T) {
+	dataKey := [32]byte{0x42}
+	root := makeSlabSlice(10, 15)
+
+	size, err := EstimateClaimSize(trackerprotocol.SourceClaimID{0xa1}, dataKey, root)
+	if err != nil {
+		t.Fatalf("estimate: %v", err)
+	}
+
+	// Size must account for script overhead (46) + push prefix + envelope overhead (1) + JSON
+	// A size that only included JSON would be ~= 300 bytes; with overhead it should be ~350+
+	if size < trackerprotocol.ClaimScriptOverhead {
+		t.Errorf("size %d does not include script overhead %d", size, trackerprotocol.ClaimScriptOverhead)
+	}
+}
+
+func TestEstimateClaimSizeSigned(t *testing.T) {
+	dataKey := [32]byte{0x42}
+	root := makeSlabSlice(10, 15)
+
+	unsigned, err := EstimateClaimSize(trackerprotocol.SourceClaimID{0xa1}, dataKey, root)
+	if err != nil {
+		t.Fatalf("unsigned estimate: %v", err)
+	}
+
+	signed, err := EstimateClaimSizeSigned(trackerprotocol.SourceClaimID{0xa1}, dataKey, root)
+	if err != nil {
+		t.Fatalf("signed estimate: %v", err)
+	}
+
+	// Signed should be larger by EnvelopeSignedOverhead - EnvelopeUnsignedOverhead = 84 bytes
+	// (push prefix may also change, so allow some variance)
+	diff := signed - unsigned
+	if diff < 84 {
+		t.Errorf("signed-unsigned diff %d, expected at least 84", diff)
+	}
+	if diff > 86 {
+		t.Errorf("signed-unsigned diff %d, expected at most 86", diff)
+	}
+}
+
+func TestFitsClaimSigned(t *testing.T) {
+	dataKey := [32]byte{0x42}
+	root := makeSlabSlice(10, 15)
+	if !FitsClaimSigned(trackerprotocol.SourceClaimID{0xa1}, dataKey, root) {
+		t.Error("expected signed claim to fit")
+	}
+}
+
 func TestPageBuilder_BuildChain_SinglePage(t *testing.T) {
-	pb := NewPageBuilder("single.mp4", "lbryfile", "single.mp4", [32]byte{0x42})
+	pb := NewPageBuilder("single.mp4", "lbryfile", "single.mp4", trackerprotocol.SourceClaimID{0xa1}, [32]byte{0x42})
 	pb.Add(FromSlabSlice(makeSlabSlice(10, 15), "h1", "i1", 1000, 0))
 	pb.Add(FromSlabSlice(makeSlabSlice(10, 15), "h2", "i2", 2000, 1))
 
@@ -170,7 +219,7 @@ func TestPageBuilder_BuildChain_SinglePage(t *testing.T) {
 }
 
 func TestPageBuilder_BuildChain_MultiPage(t *testing.T) {
-	pb := NewPageBuilder("multi.mp4", "lbryfile", "multi.mp4", [32]byte{0x42})
+	pb := NewPageBuilder("multi.mp4", "lbryfile", "multi.mp4", trackerprotocol.SourceClaimID{0xa1}, [32]byte{0x42})
 
 	for i := 0; i < 9; i++ {
 		pb.Add(FromSlabSlice(makeSlabSlice(10, 15), "h", "i", 1000, i))
@@ -209,7 +258,7 @@ func TestPageBuilder_BuildChain_MultiPage(t *testing.T) {
 }
 
 func TestPageBuilder_BuildChain_NilUpload(t *testing.T) {
-	pb := NewPageBuilder("test", "lbryfile", "test", [32]byte{0x01})
+	pb := NewPageBuilder("test", "lbryfile", "test", trackerprotocol.SourceClaimID{0xa1}, [32]byte{0x01})
 	pb.Add(FromSlabSlice(makeSlabSlice(10, 15), "h", "i", 1000, 0))
 	_, err := pb.BuildChain(10, nil)
 	if err == nil {
@@ -218,7 +267,7 @@ func TestPageBuilder_BuildChain_NilUpload(t *testing.T) {
 }
 
 func TestPageBuilder_BuildChain_ZeroBlobs(t *testing.T) {
-	pb := NewPageBuilder("empty", "lbryfile", "empty", [32]byte{0x01})
+	pb := NewPageBuilder("empty", "lbryfile", "empty", trackerprotocol.SourceClaimID{0xa1}, [32]byte{0x01})
 	result, err := pb.BuildChain(10, func(pageJSON []byte) (slabs.SlabSlice, error) {
 		return makeSlabSlice(10, 15), nil
 	})
@@ -231,7 +280,7 @@ func TestPageBuilder_BuildChain_ZeroBlobs(t *testing.T) {
 }
 
 func TestPageBuilder_BlobCount(t *testing.T) {
-	pb := NewPageBuilder("test", "lbryfile", "test", [32]byte{0x01})
+	pb := NewPageBuilder("test", "lbryfile", "test", trackerprotocol.SourceClaimID{0xa1}, [32]byte{0x01})
 	if pb.BlobCount() != 0 {
 		t.Errorf("expected 0 blobs, got %d", pb.BlobCount())
 	}

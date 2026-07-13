@@ -2,6 +2,7 @@ package trackerprotocol
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -77,7 +78,7 @@ func TestLocationUnmarshalJSON(t *testing.T) {
 }
 
 func TestClaimSize_ExceedsMax(t *testing.T) {
-	huge := make([]byte, MaxClaimSize+100)
+	huge := make([]byte, MaxClaimScriptSize+100)
 	claim := TrackerClaim{
 		Version:       ProtocolVersion,
 		Location:      LocationSia,
@@ -91,9 +92,144 @@ func TestClaimSize_ExceedsMax(t *testing.T) {
 	}
 }
 
+func TestValuePushSize(t *testing.T) {
+	tests := []struct {
+		dataLen int
+		want    int
+	}{
+		{0, 1},
+		{1, 1},
+		{75, 1},
+		{76, 2}, // OP_PUSHDATA1
+		{255, 2},
+		{256, 3},
+		{65535, 3},
+		{65536, 5},
+	}
+	for _, tt := range tests {
+		got := ValuePushSize(tt.dataLen)
+		if got != tt.want {
+			t.Errorf("ValuePushSize(%d) = %d, want %d", tt.dataLen, got, tt.want)
+		}
+	}
+}
+
+func TestValidateClaimSize_OnChainCalculation(t *testing.T) {
+	// Build a minimal claim and verify the on-chain size matches manual calculation.
+	claim := TrackerClaim{
+		Version:       ProtocolVersion,
+		Location:      LocationSia,
+		SourceClaimID: SourceClaimID{0x01},
+		DataKey:       [32]byte{},
+		LocationData:  []byte(`{}`),
+	}
+	data, err := EncodeClaim(claim)
+	if err != nil {
+		t.Fatalf("encode: %v", err)
+	}
+
+	// Expected unsigned on-chain size:
+	// ClaimScriptOverhead + ValuePushSize(envelope) + EnvelopeUnsignedOverhead + JSON
+	envelopeSize := EnvelopeUnsignedOverhead + len(data)
+	expected := ClaimScriptOverhead + ValuePushSize(envelopeSize) + envelopeSize
+
+	// Should pass validation
+	if err := ValidateClaimSize(claim); err != nil {
+		t.Errorf("expected validation to pass for %d bytes: %v", expected, err)
+	}
+
+	// Signed should also pass
+	if err := ValidateClaimSizeSigned(claim); err != nil {
+		signedEnvelope := EnvelopeSignedOverhead + len(data)
+		signedExpected := ClaimScriptOverhead + ValuePushSize(signedEnvelope) + signedEnvelope
+		t.Errorf("expected signed validation to pass for %d bytes: %v", signedExpected, err)
+	}
+}
+
+func TestValidateClaimSizeSigned_Boundary(t *testing.T) {
+	// Find the maximum JSON payload size that fits as a signed claim.
+	// Total = ClaimScriptOverhead + ValuePushSize(85+payloadSize) + 85 + payloadSize <= 8192
+	// payloadSize = len(EncodeClaim(claim)) which includes LocationData + overhead
+	// Use a JSON string of 'a' chars as LocationData to control size.
+	// EncodeClaim wraps it as json.RawMessage, so LocationData is embedded as-is.
+	// The non-LocationData fields add ~180 bytes of JSON overhead.
+	// We compute the right size empirically by binary search.
+	baseClaim := TrackerClaim{
+		Version:       ProtocolVersion,
+		Location:      LocationSia,
+		SourceClaimID: SourceClaimID{0x01},
+		DataKey:       [32]byte{},
+		LocationData:  []byte(`""`),
+	}
+	baseData, _ := EncodeClaim(baseClaim)
+	baseLen := len(baseData) // ~195 bytes for the non-LocationData portion + 2 bytes for ""
+
+	// Budget for LocationData content (excluding the 2-byte "" we already have):
+	// 46 + 3 + 85 + baseLen + locDataLen <= 8192
+	// locDataLen <= 8192 - 46 - 3 - 85 - baseLen
+	maxLocData := MaxClaimScriptSize - ClaimScriptOverhead - 3 - EnvelopeSignedOverhead - baseLen
+	if maxLocData < 0 {
+		t.Fatalf("base claim too large: %d", baseLen)
+	}
+
+	// Build a JSON string of the right length
+	padding := strings.Repeat("a", maxLocData)
+	locData := `"` + padding + `"` // valid JSON string
+
+	claim := TrackerClaim{
+		Version:       ProtocolVersion,
+		Location:      LocationSia,
+		SourceClaimID: SourceClaimID{0x01},
+		DataKey:       [32]byte{},
+		LocationData:  []byte(locData),
+	}
+	if err := ValidateClaimSizeSigned(claim); err != nil {
+		t.Errorf("expected max-size claim to pass: %v", err)
+	}
+
+	// One byte over should fail
+	padding2 := strings.Repeat("a", maxLocData+1)
+	claim.LocationData = []byte(`"` + padding2 + `"`)
+	if err := ValidateClaimSizeSigned(claim); err == nil {
+		t.Error("expected failure for one byte over the limit")
+	}
+}
+
 func TestDecodeClaim_InvalidJSON(t *testing.T) {
 	_, err := DecodeClaim([]byte(`{invalid`))
 	if err == nil {
 		t.Error("expected error for invalid JSON")
+	}
+}
+
+func TestIsTrackerClaim(t *testing.T) {
+	// Valid unsigned envelope with valid TrackerClaim JSON
+	claim := TrackerClaim{
+		Version:       ProtocolVersion,
+		Location:      LocationSia,
+		SourceClaimID: SourceClaimID{0x01},
+		DataKey:       [32]byte{},
+		LocationData:  []byte(`{}`),
+	}
+	claimJSON, _ := EncodeClaim(claim)
+	envelope := EncodeUnsignedEnvelope(claimJSON)
+	if !IsTrackerClaim(envelope) {
+		t.Error("expected true for valid unsigned tracker claim")
+	}
+
+	// Invalid: envelope with garbage payload
+	garbage := EncodeUnsignedEnvelope([]byte(`not json`))
+	if IsTrackerClaim(garbage) {
+		t.Error("expected false for non-JSON payload")
+	}
+
+	// Invalid: not an envelope at all
+	if IsTrackerClaim([]byte{0x99, 0x01, 0x02}) {
+		t.Error("expected false for unknown version")
+	}
+
+	// Invalid: empty
+	if IsTrackerClaim([]byte{}) {
+		t.Error("expected false for empty")
 	}
 }

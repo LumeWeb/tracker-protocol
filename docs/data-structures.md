@@ -14,7 +14,7 @@ location-specific retrieval data as opaque JSON.
 
 ```mermaid
 graph TD
-    TC["TrackerClaim (on-chain, <=8192 bytes)"]
+    TC["TrackerClaim (on-chain, <=8192 byte claim script limit)"]
     TC -->|"locationData"| P0["ManifestPage 0 (off-chain)"]
     P0 -->|"data"| M0["Page payload (stream metadata + blobs)"]
     P0 -->|"next"| P1["ManifestPage 1"]
@@ -74,7 +74,7 @@ The 20-byte ClaimID of the LBRY source claim, serialized as a 40-character
 lowercase hex string. Derived from the source claim's outpoint:
 `RIPEMD160(SHA256(tx:vout))`.
 
-Verification value — the client computes the tracker name from the source
+Verification value: the client computes the tracker name from the source
 ClaimID before querying, then validates this field on decode.
 
 #### dataKey
@@ -92,7 +92,7 @@ Backend-specific retrieval data as opaque JSON. The schema depends on
 | Constant | Value | Description |
 |---|---|---|
 | Protocol version | `0` | Current protocol version |
-| Max claim size | `8192` | Maximum serialized TrackerClaim size in bytes |
+| Max claim script size | `8192` | Maximum on-chain claim script size in bytes (lbcd consensus, excludes P2PKH) |
 | Source ClaimID length | `20` | Length of a LBRY ClaimID in bytes |
 | Sia location identifier | `"sia"` | Storage backend identifier for Sia |
 
@@ -136,7 +136,14 @@ page.
 
 ## 6. Size Budget
 
-On-chain claim value **MUST NOT** exceed 8192 bytes (LBRY consensus limit).
+The on-chain claim script (as measured by LBRY consensus, excluding the P2PKH
+script pubkey part) **MUST NOT** exceed `MaxClaimScriptSize` (8192 bytes). The
+claim script covers `OP_CLAIMNAME`, the claim name, the claim value (envelope
++ JSON), and control opcodes. See *Tracker Claim Naming Specification*,
+Section 6.2 for the full size budget breakdown.
+
+The TrackerClaim JSON payload is a subset of the claim value. The approximate
+JSON payload composition:
 
 | Component | Size (bytes) |
 |---|---|
@@ -146,10 +153,17 @@ On-chain claim value **MUST NOT** exceed 8192 bytes (LBRY consensus limit).
 | `sourceClaimId` | 42 |
 | `dataKey` | 66 |
 | `locationData` (root pointer) | 200-400 |
-| **Total** | **~380-580** |
+| **Total JSON** | **~380-580** |
 
 Measured: 426 bytes with a single-slab Sia test payload. Manifest metadata is
 stored off-chain in the manifest page chain.
+
+Maximum JSON payload that fits on-chain:
+
+| Envelope type | Max JSON payload (bytes) |
+|---|---|
+| Unsigned | 8142 |
+| Signed | 8058 |
 
 ## 7. Location Extensibility
 
@@ -168,5 +182,5 @@ TrackerClaim **MUST** be serialized as JSON. Implementations **SHOULD** provide:
 
 - Encode: TrackerClaim -> JSON bytes
 - Decode: JSON bytes -> TrackerClaim
-- Size validation: verify serialized size <= 8192 bytes
+- Size validation: verify total on-chain claim script size <= MaxClaimScriptSize (8192 bytes), accounting for script overhead, envelope overhead, value push prefix, and JSON payload
 - JSON Schema generation for validation

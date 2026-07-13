@@ -59,17 +59,19 @@ type PageBuilder struct {
 	streamName        string
 	streamType        string
 	suggestedFileName string
+	sourceClaimID     trackerprotocol.SourceClaimID
 	dataKey           [32]byte
 	blobs             []ManifestBlob
 }
 
 // NewPageBuilder creates a PageBuilder for a Sia-backed stream. The stream
 // metadata fields populate the first page's Manifest.
-func NewPageBuilder(streamName, streamType, suggestedFileName string, dataKey [32]byte) *PageBuilder {
+func NewPageBuilder(streamName, streamType, suggestedFileName string, sourceClaimID trackerprotocol.SourceClaimID, dataKey [32]byte) *PageBuilder {
 	return &PageBuilder{
 		streamName:        streamName,
 		streamType:        streamType,
 		suggestedFileName: suggestedFileName,
+		sourceClaimID:     sourceClaimID,
 		dataKey:           dataKey,
 	}
 }
@@ -137,35 +139,70 @@ func (pb *PageBuilder) ManifestPage(plan PagePlan, nextSlab *slabs.SlabSlice) (t
 	return EncodeManifestBlobsPage(mb, nextSlab)
 }
 
-// EstimateClaimSize estimates the serialized size of the TrackerClaim when
-// the root SlabSlice is used as LocationData. This is useful for checking
-// whether the claim will fit within MaxClaimSize before uploading.
-func EstimateClaimSize(dataKey [32]byte, root slabs.SlabSlice) (int, error) {
+// EstimateClaimSize estimates the total on-chain size of the TrackerClaim
+// when encoded as an unsigned claim value envelope: script overhead + value
+// push prefix + envelope overhead + JSON payload.
+func EstimateClaimSize(sourceClaimID trackerprotocol.SourceClaimID, dataKey [32]byte, root slabs.SlabSlice) (int, error) {
 	ld, err := json.Marshal(root)
 	if err != nil {
 		return 0, fmt.Errorf("marshal root slab: %w", err)
 	}
 	claim := trackerprotocol.TrackerClaim{
-		Version:      trackerprotocol.ProtocolVersion,
-		Location:     trackerprotocol.LocationSia,
-		DataKey:      dataKey,
-		LocationData: ld,
+		Version:       trackerprotocol.ProtocolVersion,
+		Location:      trackerprotocol.LocationSia,
+		SourceClaimID: sourceClaimID,
+		DataKey:       dataKey,
+		LocationData:  ld,
 	}
 	data, err := trackerprotocol.EncodeClaim(claim)
 	if err != nil {
 		return 0, err
 	}
-	return len(data), nil
+	envelopeSize := trackerprotocol.EnvelopeUnsignedOverhead + len(data)
+	return trackerprotocol.ClaimScriptOverhead + trackerprotocol.ValuePushSize(envelopeSize) + envelopeSize, nil
 }
 
 // FitsClaim checks whether a claim with the given dataKey and root SlabSlice
-// would fit within MaxClaimSize.
-func FitsClaim(dataKey [32]byte, root slabs.SlabSlice) bool {
-	size, err := EstimateClaimSize(dataKey, root)
+// would fit within MaxClaimScriptSize as an unsigned envelope.
+func FitsClaim(sourceClaimID trackerprotocol.SourceClaimID, dataKey [32]byte, root slabs.SlabSlice) bool {
+	size, err := EstimateClaimSize(sourceClaimID, dataKey, root)
 	if err != nil {
 		return false
 	}
-	return size <= trackerprotocol.MaxClaimSize
+	return size <= trackerprotocol.MaxClaimScriptSize
+}
+
+// EstimateClaimSizeSigned estimates the total on-chain size of the TrackerClaim
+// when encoded as a signed claim value envelope: script overhead + value
+// push prefix + signed envelope overhead (85 bytes) + JSON payload.
+func EstimateClaimSizeSigned(sourceClaimID trackerprotocol.SourceClaimID, dataKey [32]byte, root slabs.SlabSlice) (int, error) {
+	ld, err := json.Marshal(root)
+	if err != nil {
+		return 0, fmt.Errorf("marshal root slab: %w", err)
+	}
+	claim := trackerprotocol.TrackerClaim{
+		Version:       trackerprotocol.ProtocolVersion,
+		Location:      trackerprotocol.LocationSia,
+		SourceClaimID: sourceClaimID,
+		DataKey:       dataKey,
+		LocationData:  ld,
+	}
+	data, err := trackerprotocol.EncodeClaim(claim)
+	if err != nil {
+		return 0, err
+	}
+	envelopeSize := trackerprotocol.EnvelopeSignedOverhead + len(data)
+	return trackerprotocol.ClaimScriptOverhead + trackerprotocol.ValuePushSize(envelopeSize) + envelopeSize, nil
+}
+
+// FitsClaimSigned checks whether a claim with the given dataKey and root
+// SlabSlice would fit within MaxClaimScriptSize as a signed envelope.
+func FitsClaimSigned(sourceClaimID trackerprotocol.SourceClaimID, dataKey [32]byte, root slabs.SlabSlice) bool {
+	size, err := EstimateClaimSizeSigned(sourceClaimID, dataKey, root)
+	if err != nil {
+		return false
+	}
+	return size <= trackerprotocol.MaxClaimScriptSize
 }
 
 // BuildChain orchestrates the full reverse-build cycle:
@@ -213,7 +250,7 @@ func (pb *PageBuilder) BuildChain(maxBlobsPerPage int, upload UploadFunc) (*Buil
 	// nextSlab now points to the first page's slab (the last one uploaded).
 	rootSlab := *nextSlab
 
-	claim, err := EncodeClaim(pb.dataKey, rootSlab)
+	claim, err := EncodeClaim(pb.sourceClaimID, pb.dataKey, rootSlab)
 	if err != nil {
 		return nil, fmt.Errorf("encode claim: %w", err)
 	}

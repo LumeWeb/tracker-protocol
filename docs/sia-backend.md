@@ -101,9 +101,11 @@ sequenceDiagram
 
 ### 4.2 Size Estimation
 
-A claim **MUST NOT** exceed 8192 bytes when serialized. Before uploading,
-implementations **SHOULD** estimate the serialized claim size using the root
-storage location and data key to verify it fits within the limit.
+The total on-chain claim script (including opcodes, name, envelope, and JSON
+payload) **MUST NOT** exceed `MaxClaimScriptSize` (8192 bytes). Before
+uploading, implementations **SHOULD** estimate the total on-chain size
+(including script overhead, envelope overhead, variable value push prefix,
+and JSON payload) to verify it fits within the limit.
 
 ## 5. Location Extensibility
 
@@ -114,5 +116,5 @@ be specified following the same pattern:
 2. Define manifest page payload types.
 3. Define the page chain construction protocol.
 
-Core types (`TrackerClaim`, `ManifestPage`) remain unchanged — they use opaque
+Core types (`TrackerClaim`, `ManifestPage`) remain unchanged; they use opaque
 JSON for backend-specific fields.

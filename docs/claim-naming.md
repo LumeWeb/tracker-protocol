@@ -33,14 +33,13 @@ Tracker claim names **MUST** comply with these restrictions.
 
 ## 2.2. Channel Scoping
 
-At the claimtrie level, channel-scoped names do not exist. A channel claim
-(`@creator`) and a stream claim (`my-video`) are independent top-level keys.
-The channel association is established through the claim value's signature
-envelope, not through the claim name.
+On the claimtrie, channel claims (`@creator`) and stream claims (`my-video`)
+are registered as independent top-level keys. The association between a stream
+claim and a channel is established cryptographically through the signature
+envelope within the claim value.
 
 The `@creator#my-video` syntax is a client-side URI convention for resolving
-claims by channel and name. The claimtrie itself has no knowledge of this
-association.
+claims by channel and name.
 
 Channel signature verification is performed client-side. The claimtrie stores
 the claim value as opaque bytes and enforces only size constraints.
@@ -79,8 +78,8 @@ digest = SHA-256(tx_input_0_hash || channel_claim_id || tracker_claim_json_bytes
 | `tracker_claim_json_bytes` | Raw bytes of the TrackerClaim JSON payload (starting at byte 85) |
 
 The signature is a 64-byte compact ECDSA (r||s) signature over the SECP256k1
-curve. Public-key recovery is not used; the signing channel's public key is
-fetched from its channel claim (see Verification, step 5).
+curve. The signing channel's public key is fetched from its channel claim
+(see Verification, step 5).
 
 ### Verification
 
@@ -270,12 +269,45 @@ This detects:
 
 ### 6.2 Size Budget
 
-On-chain claim value **MUST NOT** exceed 8192 bytes (LBRY consensus limit).
+The on-chain claim script (as measured by LBRY consensus, excluding the P2PKH
+script pubkey part) **MUST NOT** exceed `MaxClaimScriptSize` (8192 bytes). The
+claim script comprises:
 
-For signed claims, the signature envelope adds 85 bytes overhead (1-byte
-version + 20-byte channel ClaimID + 64-byte signature). For a detailed
-payload size budget breakdown, see *Tracker Claim Data Structures
-Specification*, Section 7.
+```
+OP_CLAIMNAME <name> <value> OP_2DROP OP_DROP
+```
+
+The size limit covers all of these components, not just the claim value.
+
+**Fixed overhead (46 bytes):**
+
+| Component | Bytes |
+|---|---|
+| `OP_CLAIMNAME` opcode | 1 |
+| Name push prefix | 1 |
+| Tracker claim name (`t-` + 40 hex) | 42 |
+| `OP_2DROP` opcode | 1 |
+| `OP_DROP` opcode | 1 |
+
+**Envelope overhead:**
+
+| Envelope type | Overhead | Layout |
+|---|---|---|
+| Unsigned | 1 | `[0x00]` version byte |
+| Signed | 85 | `[0x01]` version + 20-byte channel ClaimID + 64-byte signature |
+
+**Value push prefix** is variable (1-5 bytes), matching lbcd's canonical data
+push encoding for the envelope value.
+
+**Maximum JSON payload:**
+
+| Envelope type | Max JSON payload (bytes) |
+|---|---|
+| Unsigned | 8142 |
+| Signed | 8058 |
+
+Both assume a 3-byte value push prefix, which applies when the envelope exceeds
+255 bytes (the typical case for tracker claims).
 
 ## 7. Ranking
 
@@ -331,7 +363,7 @@ tracker. The claim enters `Deactivated` status and is eventually pruned.
 | Spoofed tracker data | Download-time SHA-384 verification per blob |
 | Stale/expired trackers | Storage fetch fails at filter step 5; client skips |
 | Spam flood | Economic: each claim locks LBC in a UTXO |
-| Censorship | Claimtrie replicated on every full node; no central server |
+| Censorship | Claimtrie replicated on every full node; exact-match resolution against local data |
 | Takeover attack | Activation delay (up to ~7 days) slows displacement |
 | Forged creator signature | ECDSA verification against channel public key |
 
