@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"go.lumeweb.com/tracker-protocol"
+	"go.lumeweb.com/urma"
 	"go.sia.tech/indexd/slabs"
 )
 
@@ -22,11 +22,11 @@ type PagePlan struct {
 }
 
 // BuildChainResult is the output of BuildChain. It contains the fully
-// constructed TrackerClaim, the root SlabSlice pointing to the first
+// constructed UrmaClaim, the root SlabSlice pointing to the first
 // manifest page object, and the total number of pages.
 type BuildChainResult struct {
-	// Claim is the TrackerClaim ready to be published.
-	Claim trackerprotocol.TrackerClaim
+	// Claim is the UrmaClaim ready to be published.
+	Claim urma.UrmaClaim
 
 	// RootSlab is the SlabSlice pointing to the first manifest page object
 	// on Sia (also embedded in Claim.LocationData).
@@ -46,7 +46,7 @@ type BuildChainResult struct {
 type UploadFunc func(pageJSON []byte) (slabs.SlabSlice, error)
 
 // PageBuilder accumulates blobs and builds a paginated manifest chain for
-// Sia-backed tracker claims.
+// Sia-backed urma claims.
 //
 // Usage:
 //
@@ -59,14 +59,14 @@ type PageBuilder struct {
 	streamName        string
 	streamType        string
 	suggestedFileName string
-	sourceClaimID     trackerprotocol.SourceClaimID
+	sourceClaimID     urma.SourceClaimID
 	dataKey           [32]byte
 	blobs             []ManifestBlob
 }
 
 // NewPageBuilder creates a PageBuilder for a Sia-backed stream. The stream
 // metadata fields populate the first page's Manifest.
-func NewPageBuilder(streamName, streamType, suggestedFileName string, sourceClaimID trackerprotocol.SourceClaimID, dataKey [32]byte) *PageBuilder {
+func NewPageBuilder(streamName, streamType, suggestedFileName string, sourceClaimID urma.SourceClaimID, dataKey [32]byte) *PageBuilder {
 	return &PageBuilder{
 		streamName:        streamName,
 		streamType:        streamType,
@@ -118,11 +118,11 @@ func (pb *PageBuilder) Plan(maxBlobsPerPage int) []PagePlan {
 	return plans
 }
 
-// ManifestPage builds a trackerprotocol.ManifestPage from a PagePlan. The
+// ManifestPage builds a urma.ManifestPage from a PagePlan. The
 // first page (PageIndex 0) encodes a Manifest (stream metadata + blobs).
 // Continuation pages encode a ManifestBlobs (blobs only). If the plan has a
 // next page, the provided nextSlab is embedded as the Next pointer.
-func (pb *PageBuilder) ManifestPage(plan PagePlan, nextSlab *slabs.SlabSlice) (trackerprotocol.ManifestPage, error) {
+func (pb *PageBuilder) ManifestPage(plan PagePlan, nextSlab *slabs.SlabSlice) (urma.ManifestPage, error) {
 	if plan.PageIndex == 0 {
 		m := Manifest{
 			StreamName:        pb.streamName,
@@ -139,70 +139,70 @@ func (pb *PageBuilder) ManifestPage(plan PagePlan, nextSlab *slabs.SlabSlice) (t
 	return EncodeManifestBlobsPage(mb, nextSlab)
 }
 
-// EstimateClaimSize estimates the total on-chain size of the TrackerClaim
+// EstimateClaimSize estimates the total on-chain size of the UrmaClaim
 // when encoded as an unsigned claim value envelope: script overhead + value
 // push prefix + envelope overhead + JSON payload.
-func EstimateClaimSize(sourceClaimID trackerprotocol.SourceClaimID, dataKey [32]byte, root slabs.SlabSlice) (int, error) {
+func EstimateClaimSize(sourceClaimID urma.SourceClaimID, dataKey [32]byte, root slabs.SlabSlice) (int, error) {
 	ld, err := json.Marshal(root)
 	if err != nil {
 		return 0, fmt.Errorf("marshal root slab: %w", err)
 	}
-	claim := trackerprotocol.TrackerClaim{
-		Version:       trackerprotocol.ProtocolVersion,
-		Location:      trackerprotocol.LocationSia,
+	claim := urma.UrmaClaim{
+		Version:       urma.ProtocolVersion,
+		Location:      urma.LocationSia,
 		SourceClaimID: sourceClaimID,
 		DataKey:       dataKey,
 		LocationData:  ld,
 	}
-	data, err := trackerprotocol.EncodeClaim(claim)
+	data, err := urma.EncodeClaim(claim)
 	if err != nil {
 		return 0, err
 	}
-	envelopeSize := trackerprotocol.EnvelopeUnsignedOverhead + len(data)
-	return trackerprotocol.ClaimScriptOverhead + trackerprotocol.ValuePushSize(envelopeSize) + envelopeSize, nil
+	envelopeSize := urma.EnvelopeUnsignedOverhead + len(data)
+	return urma.ClaimScriptOverhead + urma.ValuePushSize(envelopeSize) + envelopeSize, nil
 }
 
 // FitsClaim checks whether a claim with the given dataKey and root SlabSlice
 // would fit within MaxClaimScriptSize as an unsigned envelope.
-func FitsClaim(sourceClaimID trackerprotocol.SourceClaimID, dataKey [32]byte, root slabs.SlabSlice) bool {
+func FitsClaim(sourceClaimID urma.SourceClaimID, dataKey [32]byte, root slabs.SlabSlice) bool {
 	size, err := EstimateClaimSize(sourceClaimID, dataKey, root)
 	if err != nil {
 		return false
 	}
-	return size <= trackerprotocol.MaxClaimScriptSize
+	return size <= urma.MaxClaimScriptSize
 }
 
-// EstimateClaimSizeSigned estimates the total on-chain size of the TrackerClaim
+// EstimateClaimSizeSigned estimates the total on-chain size of the UrmaClaim
 // when encoded as a signed claim value envelope: script overhead + value
 // push prefix + signed envelope overhead (85 bytes) + JSON payload.
-func EstimateClaimSizeSigned(sourceClaimID trackerprotocol.SourceClaimID, dataKey [32]byte, root slabs.SlabSlice) (int, error) {
+func EstimateClaimSizeSigned(sourceClaimID urma.SourceClaimID, dataKey [32]byte, root slabs.SlabSlice) (int, error) {
 	ld, err := json.Marshal(root)
 	if err != nil {
 		return 0, fmt.Errorf("marshal root slab: %w", err)
 	}
-	claim := trackerprotocol.TrackerClaim{
-		Version:       trackerprotocol.ProtocolVersion,
-		Location:      trackerprotocol.LocationSia,
+	claim := urma.UrmaClaim{
+		Version:       urma.ProtocolVersion,
+		Location:      urma.LocationSia,
 		SourceClaimID: sourceClaimID,
 		DataKey:       dataKey,
 		LocationData:  ld,
 	}
-	data, err := trackerprotocol.EncodeClaim(claim)
+	data, err := urma.EncodeClaim(claim)
 	if err != nil {
 		return 0, err
 	}
-	envelopeSize := trackerprotocol.EnvelopeSignedOverhead + len(data)
-	return trackerprotocol.ClaimScriptOverhead + trackerprotocol.ValuePushSize(envelopeSize) + envelopeSize, nil
+	envelopeSize := urma.EnvelopeSignedOverhead + len(data)
+	return urma.ClaimScriptOverhead + urma.ValuePushSize(envelopeSize) + envelopeSize, nil
 }
 
 // FitsClaimSigned checks whether a claim with the given dataKey and root
 // SlabSlice would fit within MaxClaimScriptSize as a signed envelope.
-func FitsClaimSigned(sourceClaimID trackerprotocol.SourceClaimID, dataKey [32]byte, root slabs.SlabSlice) bool {
+func FitsClaimSigned(sourceClaimID urma.SourceClaimID, dataKey [32]byte, root slabs.SlabSlice) bool {
 	size, err := EstimateClaimSizeSigned(sourceClaimID, dataKey, root)
 	if err != nil {
 		return false
 	}
-	return size <= trackerprotocol.MaxClaimScriptSize
+	return size <= urma.MaxClaimScriptSize
 }
 
 // BuildChain orchestrates the full reverse-build cycle:
@@ -212,7 +212,7 @@ func FitsClaimSigned(sourceClaimID trackerprotocol.SourceClaimID, dataKey [32]by
 //  3. For each page: build the ManifestPage JSON (with the Next pointer from
 //     the previously uploaded page), upload it via the callback, and store
 //     the resulting SlabSlice.
-//  4. The first page's SlabSlice becomes the root in the TrackerClaim.
+//  4. The first page's SlabSlice becomes the root in the UrmaClaim.
 //
 // The caller provides an UploadFunc that handles the actual Sia upload.
 // BuildChain handles all linking — the caller never touches Next pointers.

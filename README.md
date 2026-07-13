@@ -1,92 +1,38 @@
-# tracker-protocol
+# Urma
 
-Protocol specification for decentralized storage tracker claims. Defines the data structures that allow a client to locate, retrieve, and decrypt a file stored on a decentralized storage network (Sia, and future backends).
-
-## Data Structure
-
-```mermaid
-graph TD
-    subgraph Claim ["TrackerClaim ≤8192 bytes"]
-        Version["Version: uint8"]
-        Location["Location: string ('sia')"]
-        DataKey["DataKey: [32]byte"]
-        LocationData["LocationData: json.RawMessage"]
-    end
-
-    LocationData -->|"decodes to"| RootSlab["SlabSlice (Sia)"]
-
-    subgraph Page0 ["ManifestPage 0 (page 0)"]
-        Page0Data["Data: Manifest"]
-        Page0Next["Next: json.RawMessage"]
-    end
-
-    RootSlab -->|"points to"| Page0
-
-    subgraph Manifest ["Manifest (page 0 payload)"]
-        StreamName["StreamName: string"]
-        StreamType["StreamType: string"]
-        SuggestedFileName["SuggestedFileName: string"]
-        Blobs0["Blobs: []ManifestBlob"]
-    end
-
-    Page0Data --> Manifest
-
-    subgraph Blob1 ["ManifestBlob"]
-        BlobHash1["BlobHash: string (hex)"]
-        IV1["IV: string (hex)"]
-        BlobLength1["BlobLength: int"]
-        BlobNum1["BlobNum: int"]
-        SlabKey1["SlabKey: EncryptionKey"]
-        MinShards1["MinShards: uint"]
-        Sectors1["Sectors: []PinnedSector"]
-        SlabOffset1["SlabOffset: uint32"]
-        SlabLength1["SlabLength: uint32"]
-    end
-
-    Blobs0 --> Blob1
-
-    Page0Next -->|"decodes to SlabSlice"| Page1Slab["SlabSlice (Sia)"]
-    Page1Slab -->|"points to"| Page1
-
-    subgraph Page1 ["ManifestPage 1 (continuation)"]
-        Page1Data["Data: ManifestBlobs"]
-        Page1Next["Next: json.RawMessage (omitempty)"]
-    end
-
-    subgraph ManifestBlobs ["ManifestBlobs (continuation payload)"]
-        Blobs1["Blobs: []ManifestBlob"]
-    end
-
-    Page1Data --> ManifestBlobs
-
-    Page1Next -.->|"nil = last page"| End((End))
-```
+Protocol for decentralized storage claims on the LBRY blockchain. Defines the data structures that allow a client to locate, retrieve, and decrypt a file stored on a decentralized storage network (Sia, and future backends).
 
 ## How It Works
 
-A **TrackerClaim** is a self-contained, ≤8192-byte JSON descriptor embedded in a blockchain claim. It contains:
+An **UrmaClaim** is a compact JSON descriptor embedded in a blockchain claim. It contains:
 
 - **Version** — protocol version (currently 0)
 - **Location** — storage backend identifier (`"sia"`)
 - **DataKey** — AES-256 encryption key for file content
 - **LocationData** — location-specific retrieval data (e.g. a Sia `SlabSlice` pointing to the first manifest page)
+- **SourceClaimID** — the LBRY source claim ID this Urma claim provides an alternative storage source for
 
 The claim points to a **manifest chain** — a DAG of `ManifestPage` objects stored off-chain. Each page contains blob entries mapping LBRY blob hashes to Sia slab locations, and an optional `Next` pointer to the next page. The consumer follows the chain until `Next` is nil.
 
-### Sia Flow
+### Claim Naming
 
-1. Builder accumulates `ManifestBlob` entries (blob hash, IV, Sia slab data)
-2. `PageBuilder.Plan()` divides blobs into pages
-3. `PageBuilder.BuildChain()` uploads pages in reverse (last→first), wiring `Next` pointers
-4. The first page's `SlabSlice` becomes the claim's `LocationData`
-5. The `TrackerClaim` is published to the blockchain
+Urma claims use the name `u-<source_claim_id_hex>`, derived from the LBRY source content claim. A client that finds content on LBRY computes the Urma name from the source claim ID and queries the claimtrie for matching Urma claims.
+
+### Envelope and Signing
+
+Claim values are wrapped in an envelope with a version byte. Unsigned envelopes (`0x00`) contain just the JSON payload. Signed envelopes (`0x01`) include a channel ClaimID and ECDSA signature, allowing creator-owned Urma claims that are cryptographically bound to a channel.
+
+### Size Validation
+
+The full on-chain claim script must fit within the 8192-byte `MaxClaimScriptSize` limit. This includes script overhead, envelope overhead, value push prefix, and the JSON payload. The protocol provides `ValidateClaimSize` and `ValidateClaimSizeSigned` for this accounting.
 
 ## Architecture
 
 ```
-tracker-protocol/
-├── claim.go          # TrackerClaim, Location, MaxClaimSize
+urma/
+├── claim.go          # UrmaClaim, SourceClaimID, MaxClaimScriptSize
 ├── codec.go          # EncodeClaim, DecodeClaim, ValidateClaimSize, GenerateSchema
+├── envelope.go       # Envelope encoding/decoding, signing, verification
 ├── manifest.go       # ManifestPage (core paging type)
 ├── sia/
 │   ├── sia.go        # Manifest, ManifestBlobs, ManifestBlob, encode/decode helpers
@@ -136,7 +82,7 @@ go run ./cmd/schemas
 
 ```go
 import (
-    "go.lumeweb.com/tracker-protocol/sia"
+    "go.lumeweb.com/urma/sia"
 )
 
 pb := sia.NewPageBuilder("movie.mp4", "lbryfile", "movie.mp4", dataKey)
@@ -152,7 +98,7 @@ result, err := pb.BuildChain(maxBlobsPerPage, uploadFunc)
 ### Decoding a claim
 
 ```go
-claim, err := trackerprotocol.DecodeClaim(rawJSON)
+claim, err := urma.DecodeClaim(rawJSON)
 rootSlab, err := sia.DecodeRootSlab(claim)
 // Fetch and decode manifest pages following the Next chain
 ```
@@ -162,6 +108,7 @@ rootSlab, err := sia.DecodeRootSlab(claim)
 - `go.sia.tech/core` — Sia core types
 - `go.sia.tech/indexd` — Slab/Sector types for Sia storage
 - `github.com/invopop/jsonschema` — JSON Schema generation
+- `github.com/decred/dcrd/dcrec/secp256k1/v4` — ECDSA signing and verification
 
 ## License
 

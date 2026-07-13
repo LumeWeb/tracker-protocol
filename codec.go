@@ -1,4 +1,4 @@
-package trackerprotocol
+package urma
 
 import (
 	"encoding/json"
@@ -7,14 +7,14 @@ import (
 	"github.com/invopop/jsonschema"
 )
 
-// ValidateClaimSize checks that a serialized TrackerClaim fits on-chain when
+// ValidateClaimSize checks that a serialized UrmaClaim fits on-chain when
 // encoded as an unsigned claim value envelope. The total on-chain size is:
 //
 //	ClaimScriptOverhead + valuePushPrefix + EnvelopeUnsignedOverhead + JSON
 //
 // where valuePushPrefix depends on the envelope size (1-3 bytes per the
 // canonical push encoding in lbcd's script builder).
-func ValidateClaimSize(claim TrackerClaim) error {
+func ValidateClaimSize(claim UrmaClaim) error {
 	data, err := EncodeClaim(claim)
 	if err != nil {
 		return err
@@ -26,14 +26,14 @@ func ValidateClaimSize(claim TrackerClaim) error {
 	return nil
 }
 
-// ValidateClaimSizeSigned checks that a serialized TrackerClaim fits on-chain
+// ValidateClaimSizeSigned checks that a serialized UrmaClaim fits on-chain
 // when encoded as a signed claim value envelope. The total on-chain size is:
 //
 //	ClaimScriptOverhead + valuePushPrefix + EnvelopeSignedOverhead + JSON
 //
 // The signed envelope adds EnvelopeSignedOverhead (85 bytes) for the version
 // byte, channel ClaimID, and signature.
-func ValidateClaimSizeSigned(claim TrackerClaim) error {
+func ValidateClaimSizeSigned(claim UrmaClaim) error {
 	data, err := EncodeClaim(claim)
 	if err != nil {
 		return err
@@ -63,25 +63,25 @@ func ValuePushSize(dataLen int) int {
 	}
 }
 
-// EncodeClaim serializes a TrackerClaim to JSON.
-func EncodeClaim(claim TrackerClaim) ([]byte, error) {
+// EncodeClaim serializes a UrmaClaim to JSON.
+func EncodeClaim(claim UrmaClaim) ([]byte, error) {
 	return json.Marshal(claim)
 }
 
-// DecodeClaim deserializes a TrackerClaim from JSON.
-func DecodeClaim(data []byte) (TrackerClaim, error) {
-	var claim TrackerClaim
+// DecodeClaim deserializes a UrmaClaim from JSON.
+func DecodeClaim(data []byte) (UrmaClaim, error) {
+	var claim UrmaClaim
 	if err := json.Unmarshal(data, &claim); err != nil {
-		return TrackerClaim{}, fmt.Errorf("decode claim: %w", err)
+		return UrmaClaim{}, fmt.Errorf("decode claim: %w", err)
 	}
 	return claim, nil
 }
 
-// GenerateSchema generates a JSON Schema for the TrackerClaim type.
+// GenerateSchema generates a JSON Schema for the UrmaClaim type.
 func GenerateSchema() ([]byte, error) {
 	reflector := jsonschema.Reflector{
 		DoNotReference: true,
 	}
-	schema := reflector.Reflect(TrackerClaim{})
+	schema := reflector.Reflect(UrmaClaim{})
 	return json.MarshalIndent(schema, "", "  ")
 }

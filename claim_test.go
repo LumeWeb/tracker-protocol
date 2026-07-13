@@ -1,4 +1,4 @@
-package trackerprotocol
+package urma
 
 import (
 	"encoding/json"
@@ -9,7 +9,7 @@ import (
 func TestRoundTrip_Claim(t *testing.T) {
 	rawData := json.RawMessage(`{"slabs":[{"encryptionKey":"AAAA","minShards":10,"sectors":[{"root":"0000000000000000000000000000000000000000000000000000000000000001","hostKey":"0000000000000000000000000000000000000000000000000000000000000002"}],"offset":0,"length":4194304}]}`)
 	sourceID := SourceClaimID{0xa1, 0xb2, 0xc3, 0xd4, 0xe5, 0xf6, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e}
-	claim := TrackerClaim{
+	claim := UrmaClaim{
 		Version:       ProtocolVersion,
 		Location:      LocationSia,
 		SourceClaimID: sourceID,
@@ -79,7 +79,7 @@ func TestLocationUnmarshalJSON(t *testing.T) {
 
 func TestClaimSize_ExceedsMax(t *testing.T) {
 	huge := make([]byte, MaxClaimScriptSize+100)
-	claim := TrackerClaim{
+	claim := UrmaClaim{
 		Version:       ProtocolVersion,
 		Location:      LocationSia,
 		SourceClaimID: SourceClaimID{0x01},
@@ -116,7 +116,7 @@ func TestValuePushSize(t *testing.T) {
 
 func TestValidateClaimSize_OnChainCalculation(t *testing.T) {
 	// Build a minimal claim and verify the on-chain size matches manual calculation.
-	claim := TrackerClaim{
+	claim := UrmaClaim{
 		Version:       ProtocolVersion,
 		Location:      LocationSia,
 		SourceClaimID: SourceClaimID{0x01},
@@ -154,7 +154,7 @@ func TestValidateClaimSizeSigned_Boundary(t *testing.T) {
 	// EncodeClaim wraps it as json.RawMessage, so LocationData is embedded as-is.
 	// The non-LocationData fields add ~180 bytes of JSON overhead.
 	// We compute the right size empirically by binary search.
-	baseClaim := TrackerClaim{
+	baseClaim := UrmaClaim{
 		Version:       ProtocolVersion,
 		Location:      LocationSia,
 		SourceClaimID: SourceClaimID{0x01},
@@ -176,7 +176,7 @@ func TestValidateClaimSizeSigned_Boundary(t *testing.T) {
 	padding := strings.Repeat("a", maxLocData)
 	locData := `"` + padding + `"` // valid JSON string
 
-	claim := TrackerClaim{
+	claim := UrmaClaim{
 		Version:       ProtocolVersion,
 		Location:      LocationSia,
 		SourceClaimID: SourceClaimID{0x01},
@@ -202,9 +202,9 @@ func TestDecodeClaim_InvalidJSON(t *testing.T) {
 	}
 }
 
-func TestIsTrackerClaim(t *testing.T) {
-	// Valid unsigned envelope with valid TrackerClaim JSON
-	claim := TrackerClaim{
+func TestIsUrmaClaim(t *testing.T) {
+	// Valid unsigned envelope with valid UrmaClaim JSON
+	claim := UrmaClaim{
 		Version:       ProtocolVersion,
 		Location:      LocationSia,
 		SourceClaimID: SourceClaimID{0x01},
@@ -213,23 +213,23 @@ func TestIsTrackerClaim(t *testing.T) {
 	}
 	claimJSON, _ := EncodeClaim(claim)
 	envelope := EncodeUnsignedEnvelope(claimJSON)
-	if !IsTrackerClaim(envelope) {
-		t.Error("expected true for valid unsigned tracker claim")
+	if !IsUrmaClaim(envelope) {
+		t.Error("expected true for valid unsigned urma claim")
 	}
 
 	// Invalid: envelope with garbage payload
 	garbage := EncodeUnsignedEnvelope([]byte(`not json`))
-	if IsTrackerClaim(garbage) {
+	if IsUrmaClaim(garbage) {
 		t.Error("expected false for non-JSON payload")
 	}
 
 	// Invalid: not an envelope at all
-	if IsTrackerClaim([]byte{0x99, 0x01, 0x02}) {
+	if IsUrmaClaim([]byte{0x99, 0x01, 0x02}) {
 		t.Error("expected false for unknown version")
 	}
 
 	// Invalid: empty
-	if IsTrackerClaim([]byte{}) {
+	if IsUrmaClaim([]byte{}) {
 		t.Error("expected false for empty")
 	}
 }

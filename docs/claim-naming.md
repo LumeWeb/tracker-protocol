@@ -1,17 +1,17 @@
-# Tracker Claim Naming Specification
+# Urma claim Naming Specification
 
 **Status:** Draft
 **Version:** 0
 
 ## 1. Purpose
 
-This specification defines how tracker claims are named, discovered, and
-validated on the LBRY claimtrie. A tracker claim provides an alternative
+This specification defines how Urma claims are named, discovered, and
+validated on the LBRY claimtrie. A Urma claim provides an alternative
 decentralized storage source for content originally published as a LBRY stream
 claim.
 
-Trackers are **supplemental**. A client always discovers the LBRY source claim
-first, then queries for trackers as alternative storage mirrors.
+Urmas are **supplemental**. A client always discovers the LBRY source claim
+first, then queries for Urmas as alternative storage mirrors.
 
 ## 2. Terminology
 
@@ -19,7 +19,7 @@ first, then queries for trackers as alternative storage mirrors.
 |---|---|
 | Source claim | The original LBRY stream claim |
 | Source ClaimID | 20-byte `RIPEMD160(SHA256(tx:vout))` of the source claim's outpoint |
-| Tracker claim | A claim whose value is a `TrackerClaim` JSON payload |
+| Urma claim | A claim whose value is a `UrmaClaim` JSON payload |
 | Claimtrie name | The on-chain name under which a claim is registered |
 | Manifest | Off-chain page chain containing blob metadata and storage locations |
 | Channel claim | A LBRY channel claim (e.g. `@creator`) |
@@ -29,7 +29,7 @@ first, then queries for trackers as alternative storage mirrors.
 
 LBRY consensus rules prohibit the following characters in claim names:
 `=`, `&`, `#`, `:`, `$`, `%`, `?`, `/`, `;`, `\`, and control characters.
-Tracker claim names **MUST** comply with these restrictions.
+Urma claim names **MUST** comply with these restrictions.
 
 ## 2.2. Channel Scoping
 
@@ -46,21 +46,21 @@ the claim value as opaque bytes and enforces only size constraints.
 
 ## 2.3. Claim Value Format
 
-The tracker claim value uses LBRY's signature envelope. The payload is
-TrackerClaim JSON (see *Tracker Claim Data Structures Specification*,
+The Urma claim value uses LBRY's signature envelope. The payload is
+UrmaClaim JSON (see *Urma claim Data Structures Specification*,
 Section 3) instead of protobuf. Standard LBRY clients treat the value as
-opaque claim metadata; tracker clients parse the JSON payload.
+opaque claim metadata; Urma clients parse the JSON payload.
 
-### Unsigned (global trackers)
+### Unsigned (global Urmas)
 
 ```
-[0x00] [TrackerClaim JSON bytes]
+[0x00] [UrmaClaim JSON bytes]
 ```
 
 ### Signed (creator-owned or third-party)
 
 ```
-[0x01] [20-byte channel ClaimID] [64-byte ECDSA signature] [TrackerClaim JSON bytes]
+[0x01] [20-byte channel ClaimID] [64-byte ECDSA signature] [UrmaClaim JSON bytes]
 ```
 
 ### Signature Computation
@@ -68,14 +68,14 @@ opaque claim metadata; tracker clients parse the JSON payload.
 The signature digest is computed as:
 
 ```
-digest = SHA-256(tx_input_0_hash || channel_claim_id || tracker_claim_json_bytes)
+digest = SHA-256(tx_input_0_hash || channel_claim_id || Urma_claim_json_bytes)
 ```
 
 | Component | Description |
 |---|---|
 | `tx_input_0_hash` | 36-byte OutPoint (32-byte txid + 4-byte vout) of the first transaction input |
 | `channel_claim_id` | 20-byte ClaimID of the signing channel |
-| `tracker_claim_json_bytes` | Raw bytes of the TrackerClaim JSON payload (starting at byte 85) |
+| `Urma_claim_json_bytes` | Raw bytes of the UrmaClaim JSON payload (starting at byte 85) |
 
 The signature is a 64-byte compact ECDSA (r||s) signature over the SECP256k1
 curve. The signing channel's public key is fetched from its channel claim
@@ -83,12 +83,12 @@ curve. The signing channel's public key is fetched from its channel claim
 
 ### Verification
 
-To verify a signed tracker claim:
+To verify a signed Urma claim:
 
 1. Read byte 0. If `0x00`, the claim is unsigned. If `0x01`, proceed.
 2. Read bytes 1-20: the signing channel ClaimID.
 3. Read bytes 21-84: the ECDSA signature.
-4. Read bytes 85+: the TrackerClaim JSON payload.
+4. Read bytes 85+: the UrmaClaim JSON payload.
 5. Fetch the signing channel claim and extract its public key.
 6. Recompute `SHA-256(tx_input_0_hash || channel_claim_id || json_bytes)`.
 7. Verify the signature against the digest using the channel public key.
@@ -106,17 +106,17 @@ available to re-sign the claim value on each update.
 ### 3.1 Creator-Owned Names (Preferred)
 
 ```
-t-<source_claim_id_hex>
+u-<source_claim_id_hex>
 ```
 
-The tracker claim is posted as a signed claim value, with the signing channel
+The Urma claim is posted as a signed claim value, with the signing channel
 set to the same channel that signed the source claim. The claim name is the
 same as the global name; the channel association is established through the
 signature envelope (see Section 2.3).
 
 | Component | Description |
 |---|---|
-| `t` | Tracker prefix |
+| `u` | Urma prefix |
 | `-` | Delimiter |
 | `<source_claim_id_hex>` | 40-char lowercase hex of the source claim's 20-byte ClaimID |
 
@@ -129,20 +129,20 @@ The channel private key holder produces the signature that clients verify.
 ### 3.2 Global Names (Fallback)
 
 ```
-t-<source_claim_id_hex>
+u-<source_claim_id_hex>
 ```
 
-Any operator may post a global tracker claim. The claim value is unsigned
+Any operator may post a global Urma claim. The claim value is unsigned
 (`[0x00][payload]`). No creator endorsement is implied. Multiple claims at
 the same name coexist; the claimtrie stores all claims; ranking is by
 effective amount (bid + supports).
 
 ### 3.3 Third-Party Channel-Signed Names
 
-A third-party operator may post a tracker claim signed by their own channel.
+A third-party operator may post a Urma claim signed by their own channel.
 The third party's signature establishes persistent identity and carries the
-same trust level as an unsigned global tracker. Clients **MUST** treat these
-identically to global trackers.
+same trust level as an unsigned global Urma. Clients **MUST** treat these
+identically to global Urmas.
 
 ### 3.4 Comparison
 
@@ -153,7 +153,7 @@ identically to global trackers.
 | Squatting resistance | Cryptographic | Economic | Cryptographic (identity only) |
 | Multiple operators | Channel owner only | Yes | Yes |
 | Discovery | Signed by source channel | Deterministic from ClaimID | Deterministic from ClaimID |
-| Claim name | Same as global | `t-<hex>` | Same as global |
+| Claim name | Same as global | `u-<hex>` | Same as global |
 
 ## 4. Discovery
 
@@ -161,17 +161,17 @@ identically to global trackers.
 
 ```mermaid
 flowchart TD
-    A[Resolve source claim - get ClaimID] --> B[Compute tracker name]
-    B --> C["t-<hex(claim_id)>"]
+    A[Resolve source claim - get ClaimID] --> B[Compute Urma name]
+    B --> C["u-<hex(claim_id)>"]
     C --> D["getclaimsforname"]
     D --> E[Run validation pipeline]
-    E --> F{Valid tracker found?}
-    F -->|Yes| G[Use tracker]
+    E --> F{Valid Urma found?}
+    F -->|Yes| G[Use Urma]
     F -->|No| H[No alternative source]
 ```
 
-The client queries `getclaimsforname` with the deterministic tracker name.
-Creator-owned trackers are identified by checking byte 0 of the claim value
+The client queries `getclaimsforname` with the deterministic Urma name.
+Creator-owned Urmas are identified by checking byte 0 of the claim value
 (`0x01` = signed) and verifying the channel ClaimID matches the source
 claim's signing channel (see Section 2.3). The ClaimID is obtained from the
 source claim the client already resolved.
@@ -195,7 +195,7 @@ pressure.
 flowchart TD
     Start[Claim from getclaimsforname] --> S1{Status == Activated?}
     S1 -->|No| Skip[Skip claim]
-    S1 -->|Yes| S2{Decodes as TrackerClaim JSON?}
+    S1 -->|Yes| S2{Decodes as UrmaClaim JSON?}
     S2 -->|No| Skip
     S2 -->|Yes| S3{sourceClaimId matches expected?}
     S3 -->|No| Skip
@@ -206,10 +206,10 @@ flowchart TD
     S4a -->|Yes| S5
     S5{Root locationData fetches?}
     S5 -->|No| Skip
-    S5 -->|Yes| Valid[Valid tracker]
+    S5 -->|Yes| Valid[Valid Urma]
 ```
 
-A claim **MUST** pass all applicable filters to be considered a valid tracker.
+A claim **MUST** pass all applicable filters to be considered a valid Urma.
 Filters are ordered by cost: zero-cost checks first, network operations last.
 
 ### 5.2 Download-Time Verification
@@ -219,9 +219,9 @@ Blob integrity is verified lazily during download:
 1. Download a blob from the storage backend via the manifest entry.
 2. Compute SHA-384 of the retrieved blob.
 3. Compare against `ManifestBlob.BlobHash`.
-4. On mismatch, discard the tracker as poisoned.
+4. On mismatch, discard the Urma as poisoned.
 
-A poisoned tracker wastes at most one blob download before detection.
+A poisoned Urma wastes at most one blob download before detection.
 
 ### 5.3 Claim Status
 
@@ -253,14 +253,14 @@ economic; each claim locks LBC in a UTXO.
 
 ## 6. Claim Value Format
 
-The tracker claim value uses LBRY's signature envelope as specified in
-Section 2.3. The payload is a `TrackerClaim` JSON object (see *Tracker Claim
+The Urma claim value uses LBRY's signature envelope as specified in
+Section 2.3. The payload is a `UrmaClaim` JSON object (see *Urma claim
 Data Structures Specification*, Section 3).
 
 ### 6.1 sourceClaimId
 
 The `sourceClaimId` field is a **verification value**, not a discovery value.
-The client computes the tracker name from the source ClaimID before querying.
+The client computes the Urma name from the source ClaimID before querying.
 On decode, the client verifies that `sourceClaimId` matches the expected value.
 
 This detects:
@@ -285,7 +285,7 @@ The size limit covers all of these components, not just the claim value.
 |---|---|
 | `OP_CLAIMNAME` opcode | 1 |
 | Name push prefix | 1 |
-| Tracker claim name (`t-` + 40 hex) | 42 |
+| Urma claim name (`u-` + 40 hex) | 42 |
 | `OP_2DROP` opcode | 1 |
 | `OP_DROP` opcode | 1 |
 
@@ -307,19 +307,19 @@ push encoding for the envelope value.
 | Signed | 8058 |
 
 Both assume a 3-byte value push prefix, which applies when the envelope exceeds
-255 bytes (the typical case for tracker claims).
+255 bytes (the typical case for Urma claims).
 
 ## 7. Ranking
 
-When multiple valid trackers exist, clients rank by:
+When multiple valid Urmas exist, clients rank by:
 
-1. **Creator-owned first.** Trackers signed by the source claim's channel
+1. **Creator-owned first.** Urmas signed by the source claim's channel
    carry the creator's cryptographic endorsement.
 2. **Effective amount.** Within each tier, sort by bid + supports. Higher
-   stake signals confidence. All trackers must pass validation regardless of
+   stake signals confidence. All Urmas must pass validation regardless of
    stake.
-3. **Recency.** Prefer recently updated trackers (via `OP_UPDATECLAIM`). Stale
-   trackers with expired storage contracts fail at filter step 5.
+3. **Recency.** Prefer recently updated Urmas (via `OP_UPDATECLAIM`). Stale
+   Urmas with expired storage contracts fail at filter step 5.
 
 ## 8. Lifecycle
 
@@ -328,11 +328,11 @@ When multiple valid trackers exist, clients rank by:
 1. Download the LBRY source stream (or obtain blobs directly).
 2. Upload each blob to the storage backend.
 3. Build the manifest page chain (see *Sia Backend Specification*, Section 4).
-4. Construct a `TrackerClaim` with root location pointer, data key, and source
+4. Construct a `UrmaClaim` with root location pointer, data key, and source
    ClaimID.
 5. Post on-chain:
-   - Global: unsigned `OP_CLAIMNAME` at name `t-<source_claim_id_hex>`
-   - Creator-owned: signed `OP_CLAIMNAME` at name `t-<source_claim_id_hex>`,
+   - Global: unsigned `OP_CLAIMNAME` at name `u-<source_claim_id_hex>`
+   - Creator-owned: signed `OP_CLAIMNAME` at name `u-<source_claim_id_hex>`,
      signed with the source claim's channel key
 
 ### 8.2 Update
@@ -352,7 +352,7 @@ unchanged.
 ### 8.3 Abandon
 
 `OP_ABANDONCLAIM` (spending the claim UTXO without replacement) removes the
-tracker. The claim enters `Deactivated` status and is eventually pruned.
+Urma. The claim enters `Deactivated` status and is eventually pruned.
 
 ## 9. Security Properties
 
@@ -360,8 +360,8 @@ tracker. The claim enters `Deactivated` status and is eventually pruned.
 |---|---|
 | Name squatting (global) | Multiple claims coexist; squatting doesn't remove others |
 | Name squatting (creator) | Cryptographically impossible without channel key |
-| Spoofed tracker data | Download-time SHA-384 verification per blob |
-| Stale/expired trackers | Storage fetch fails at filter step 5; client skips |
+| Spoofed Urma data | Download-time SHA-384 verification per blob |
+| Stale/expired Urmas | Storage fetch fails at filter step 5; client skips |
 | Spam flood | Economic: each claim locks LBC in a UTXO |
 | Censorship | Claimtrie replicated on every full node; exact-match resolution against local data |
 | Takeover attack | Activation delay (up to ~7 days) slows displacement |

@@ -1,4 +1,4 @@
-package trackerprotocol
+package urma
 
 import (
 	"encoding/hex"
@@ -254,8 +254,8 @@ func TestEnvelopeConstants(t *testing.T) {
 		t.Errorf("expected 36, got %d", OutpointLen)
 	}
 	// ClaimNameLen derived from SourceClaimIDLen
-	if ClaimNameLen != len(trackerNamePrefix)+SourceClaimIDLen*2 {
-		t.Errorf("ClaimNameLen = %d, expected %d", ClaimNameLen, len(trackerNamePrefix)+SourceClaimIDLen*2)
+	if ClaimNameLen != len(urmaNamePrefix)+SourceClaimIDLen*2 {
+		t.Errorf("ClaimNameLen = %d, expected %d", ClaimNameLen, len(urmaNamePrefix)+SourceClaimIDLen*2)
 	}
 	if ClaimNameLen != 42 {
 		t.Errorf("expected 42, got %d", ClaimNameLen)
@@ -269,23 +269,23 @@ func TestEnvelopeConstants(t *testing.T) {
 	}
 }
 
-func TestTrackerClaimName(t *testing.T) {
+func TestUrmaClaimName(t *testing.T) {
 	id := SourceClaimID{0xa1, 0xb2, 0xc3, 0xd4, 0xe5, 0xf6, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e}
-	name := TrackerClaimName(id)
+	name := UrmaClaimName(id)
 	if len(name) != ClaimNameLen {
 		t.Errorf("name length %d, expected %d", len(name), ClaimNameLen)
 	}
-	if name[:2] != "t-" {
-		t.Errorf("expected 't-' prefix, got %q", name[:2])
+	if name[:2] != "u-" {
+		t.Errorf("expected 'u-' prefix, got %q", name[:2])
 	}
 	// Verify hex encoding matches
-	expected := "t-a1b2c3d4e5f60102030405060708090a0b0c0d0e"
+	expected := "u-a1b2c3d4e5f60102030405060708090a0b0c0d0e"
 	if name != expected {
 		t.Errorf("got %q, expected %q", name, expected)
 	}
 	// Zero value
-	zeroName := TrackerClaimName(SourceClaimID{})
-	if zeroName != "t-0000000000000000000000000000000000000000" {
+	zeroName := UrmaClaimName(SourceClaimID{})
+	if zeroName != "u-0000000000000000000000000000000000000000" {
 		t.Errorf("zero name: %q", zeroName)
 	}
 }

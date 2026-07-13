@@ -1,7 +1,7 @@
 // Package sia provides Sia-specific helpers for constructing and decoding
-// tracker protocol claims and manifests.
+// urma protocol claims and manifests.
 //
-// A Sia-backed tracker claim's LocationData is a slabs.SlabSlice pointing to
+// A Sia-backed urma claim's LocationData is a slabs.SlabSlice pointing to
 // the first ManifestPage object stored on Sia. The ManifestPage contains a
 // Manifest payload (with blob entries mapping LBRY blob hashes to Sia
 // SlabSlices) and an optional Next pointer (another SlabSlice) to the next
@@ -12,7 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"go.lumeweb.com/tracker-protocol"
+	"go.lumeweb.com/urma"
 	"go.sia.tech/indexd/slabs"
 )
 
@@ -114,34 +114,34 @@ func FromSlabSlice(ss slabs.SlabSlice, blobHash, iv string, blobLength, blobNum 
 	}
 }
 
-// EncodeClaim creates a TrackerClaim whose LocationData is a SlabSlice
+// EncodeClaim creates a UrmaClaim whose LocationData is a SlabSlice
 // pointing to the first ManifestPage object on Sia. The caller provides the
 // sourceClaimID (ClaimID of the LBRY source claim), the dataKey (LBRY stream
 // encryption key), and the root SlabSlice (obtained after uploading the first
 // manifest page to Sia).
-func EncodeClaim(sourceClaimID trackerprotocol.SourceClaimID, dataKey [32]byte, root slabs.SlabSlice) (trackerprotocol.TrackerClaim, error) {
+func EncodeClaim(sourceClaimID urma.SourceClaimID, dataKey [32]byte, root slabs.SlabSlice) (urma.UrmaClaim, error) {
 	ld, err := json.Marshal(root)
 	if err != nil {
-		return trackerprotocol.TrackerClaim{}, fmt.Errorf("marshal root slab: %w", err)
+		return urma.UrmaClaim{}, fmt.Errorf("marshal root slab: %w", err)
 	}
-	claim := trackerprotocol.TrackerClaim{
-		Version:       trackerprotocol.ProtocolVersion,
-		Location:      trackerprotocol.LocationSia,
+	claim := urma.UrmaClaim{
+		Version:       urma.ProtocolVersion,
+		Location:      urma.LocationSia,
 		SourceClaimID: sourceClaimID,
 		DataKey:       dataKey,
 		LocationData:  ld,
 	}
-	if err := trackerprotocol.ValidateClaimSize(claim); err != nil {
-		return trackerprotocol.TrackerClaim{}, err
+	if err := urma.ValidateClaimSize(claim); err != nil {
+		return urma.UrmaClaim{}, err
 	}
 	return claim, nil
 }
 
 // DecodeRootSlab decodes the LocationData of a Sia claim into the root
 // SlabSlice pointing to the first ManifestPage object on Sia.
-func DecodeRootSlab(claim trackerprotocol.TrackerClaim) (slabs.SlabSlice, error) {
-	if claim.Location != trackerprotocol.LocationSia {
-		return slabs.SlabSlice{}, fmt.Errorf("expected location '%s', got '%s'", trackerprotocol.LocationSia, claim.Location)
+func DecodeRootSlab(claim urma.UrmaClaim) (slabs.SlabSlice, error) {
+	if claim.Location != urma.LocationSia {
+		return slabs.SlabSlice{}, fmt.Errorf("expected location '%s', got '%s'", urma.LocationSia, claim.Location)
 	}
 	var ss slabs.SlabSlice
 	if err := json.Unmarshal(claim.LocationData, &ss); err != nil {
@@ -153,32 +153,32 @@ func DecodeRootSlab(claim trackerprotocol.TrackerClaim) (slabs.SlabSlice, error)
 // EncodeManifestPage creates a ManifestPage from a Manifest and an optional
 // next-page SlabSlice. The resulting page is JSON-serialized and stored as a
 // Sia object.
-func EncodeManifestPage(m Manifest, next *slabs.SlabSlice) (trackerprotocol.ManifestPage, error) {
+func EncodeManifestPage(m Manifest, next *slabs.SlabSlice) (urma.ManifestPage, error) {
 	data, err := json.Marshal(m)
 	if err != nil {
-		return trackerprotocol.ManifestPage{}, fmt.Errorf("marshal manifest: %w", err)
+		return urma.ManifestPage{}, fmt.Errorf("marshal manifest: %w", err)
 	}
 	return encodePage(data, next)
 }
 
 // EncodeManifestBlobsPage creates a ManifestPage for a continuation page
 // (page 1+, 0-indexed) from a ManifestBlobs and an optional next-page SlabSlice.
-func EncodeManifestBlobsPage(mb ManifestBlobs, next *slabs.SlabSlice) (trackerprotocol.ManifestPage, error) {
+func EncodeManifestBlobsPage(mb ManifestBlobs, next *slabs.SlabSlice) (urma.ManifestPage, error) {
 	data, err := json.Marshal(mb)
 	if err != nil {
-		return trackerprotocol.ManifestPage{}, fmt.Errorf("marshal manifest blobs: %w", err)
+		return urma.ManifestPage{}, fmt.Errorf("marshal manifest blobs: %w", err)
 	}
 	return encodePage(data, next)
 }
 
-func encodePage(data []byte, next *slabs.SlabSlice) (trackerprotocol.ManifestPage, error) {
-	page := trackerprotocol.ManifestPage{
+func encodePage(data []byte, next *slabs.SlabSlice) (urma.ManifestPage, error) {
+	page := urma.ManifestPage{
 		Data: data,
 	}
 	if next != nil {
 		nextJSON, err := json.Marshal(next)
 		if err != nil {
-			return trackerprotocol.ManifestPage{}, fmt.Errorf("marshal next slab: %w", err)
+			return urma.ManifestPage{}, fmt.Errorf("marshal next slab: %w", err)
 		}
 		page.Next = nextJSON
 	}
@@ -186,7 +186,7 @@ func encodePage(data []byte, next *slabs.SlabSlice) (trackerprotocol.ManifestPag
 }
 
 // DecodeManifestPage decodes the first ManifestPage's Data into a Sia Manifest.
-func DecodeManifestPage(page trackerprotocol.ManifestPage) (Manifest, error) {
+func DecodeManifestPage(page urma.ManifestPage) (Manifest, error) {
 	var m Manifest
 	if err := json.Unmarshal(page.Data, &m); err != nil {
 		return Manifest{}, fmt.Errorf("unmarshal manifest: %w", err)
@@ -195,7 +195,7 @@ func DecodeManifestPage(page trackerprotocol.ManifestPage) (Manifest, error) {
 }
 
 // DecodeManifestBlobsPage decodes a continuation page's Data into ManifestBlobs.
-func DecodeManifestBlobsPage(page trackerprotocol.ManifestPage) (ManifestBlobs, error) {
+func DecodeManifestBlobsPage(page urma.ManifestPage) (ManifestBlobs, error) {
 	var mb ManifestBlobs
 	if err := json.Unmarshal(page.Data, &mb); err != nil {
 		return ManifestBlobs{}, fmt.Errorf("unmarshal manifest blobs: %w", err)
@@ -205,7 +205,7 @@ func DecodeManifestBlobsPage(page trackerprotocol.ManifestPage) (ManifestBlobs, 
 
 // DecodeNextSlab decodes the Next pointer of a ManifestPage into a SlabSlice.
 // Returns nil, nil if there is no next page.
-func DecodeNextSlab(page trackerprotocol.ManifestPage) (*slabs.SlabSlice, error) {
+func DecodeNextSlab(page urma.ManifestPage) (*slabs.SlabSlice, error) {
 	if len(page.Next) == 0 {
 		return nil, nil
 	}

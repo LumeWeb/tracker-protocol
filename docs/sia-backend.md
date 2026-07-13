@@ -5,13 +5,13 @@
 
 ## 1. Purpose
 
-This specification defines the Sia backend for the tracker protocol. It
+This specification defines the Sia backend for the Urma protocol. It
 covers the `locationData` schema, manifest page payload types, blob entry
 structure, and the page chain construction protocol.
 
 ## 2. LocationData
 
-For `location: "sia"`, the `TrackerClaim.locationData` field contains a
+For `location: "sia"`, the `UrmaClaim.locationData` field contains a
 serialized SlabSlice pointing to the first `ManifestPage` object stored on
 Sia. The SlabSlice **MUST** contain:
 
@@ -76,7 +76,7 @@ location of the previously uploaded page.
    c. Serialize the page as JSON.
    d. Upload to Sia.
    e. Record the resulting storage location.
-3. The first page's storage location becomes the root in `TrackerClaim.locationData`.
+3. The first page's storage location becomes the root in `UrmaClaim.locationData`.
 
 ```mermaid
 sequenceDiagram
@@ -95,7 +95,7 @@ sequenceDiagram
     end
 
     Builder->>Builder: First page location = root
-    Builder->>Builder: Encode TrackerClaim with root
+    Builder->>Builder: Encode UrmaClaim with root
     Builder-->>Caller: Result {claim, root location, page count}
 ```
 
@@ -116,5 +116,5 @@ be specified following the same pattern:
 2. Define manifest page payload types.
 3. Define the page chain construction protocol.
 
-Core types (`TrackerClaim`, `ManifestPage`) remain unchanged; they use opaque
+Core types (`UrmaClaim`, `ManifestPage`) remain unchanged; they use opaque
 JSON for backend-specific fields.

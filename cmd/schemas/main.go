@@ -1,4 +1,4 @@
-// Command schemas generates JSON Schema files for all tracker protocol types.
+// Command schemas generates JSON Schema files for all urma protocol types.
 //
 // Usage:
 //
@@ -12,7 +12,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"go.lumeweb.com/tracker-protocol/sia"
+	"go.lumeweb.com/urma/sia"
 )
 
 func main() {
