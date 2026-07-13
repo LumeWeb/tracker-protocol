@@ -1,4 +1,4 @@
-module go.lumeweb.com/tracker-protocol
+module go.lumeweb.com/urma
 
 go 1.26.4
 

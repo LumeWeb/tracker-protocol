@@ -1,4 +1,4 @@
-// Package trackerprotocol defines the TrackerClaim spec — a self-contained,
+// Package urma defines the UrmaClaim spec — a self-contained,
 // 8192-byte-maximum descriptor that tells a client how to locate, retrieve,
 // and decrypt a file stored on a decentralized storage network.
 //
@@ -7,11 +7,11 @@
 // the location-specific retrieval data as raw JSON. The claim always contains
 // the file's encryption key so the consumer can decrypt once retrieved.
 //
-// The core package defines ONLY TrackerClaim, Location, and ManifestPage.
+// The core package defines ONLY UrmaClaim, Location, and ManifestPage.
 // Location-specific types (SlabSlice, SharedObject, etc.) are imported
 // from their native packages (go.sia.tech/indexd/slabs, etc.) — no
 // redefinition here.
-package trackerprotocol
+package urma
 
 import (
 	"encoding/hex"
@@ -19,7 +19,7 @@ import (
 	"fmt"
 )
 
-// ProtocolVersion is the current version of the tracker protocol.
+// ProtocolVersion is the current version of the urma protocol.
 const ProtocolVersion uint8 = 0
 
 // MaxClaimScriptSize is the maximum on-chain claim script size in bytes, per
@@ -83,33 +83,33 @@ func (s *SourceClaimID) UnmarshalJSON(b []byte) error {
 const SourceClaimIDLen = 20
 
 // SourceClaimID is the 20-byte ClaimID of the LBRY source claim that this
-// tracker provides an alternative storage source for. It is encoded as a
+// urma provides an alternative storage source for. It is encoded as a
 // 40-character lowercase hex string in JSON.
 //
 // This field is a verification value, not a discovery value. The client
-// already knows the source claim's ClaimID before querying for trackers
-// (it found the content on LBRY, then computes the tracker name from the
-// ClaimID). When decoding a tracker claim, the client verifies that this
+// already knows the source claim's ClaimID before querying for urma claims
+// (it found the content on LBRY, then computes the urma name from the
+// ClaimID). When decoding a urma claim, the client verifies that this
 // field matches the expected source ClaimID — rejecting mismatched or
-// spoofed trackers.
+// spoofed urmas.
 type SourceClaimID [SourceClaimIDLen]byte
 
-// TrackerClaim is the top-level structure embedded in an 8192-byte claim.
+// UrmaClaim is the top-level structure embedded in an 8192-byte claim.
 // It contains everything needed to locate and begin retrieving a file.
 //
 // LocationData is raw JSON — its schema depends on Location. For "sia",
 // it serializes to a slabs.SlabSlice pointing to the first ManifestPage.
 // The consumer imports the location-specific package to decode it.
-type TrackerClaim struct {
+type UrmaClaim struct {
 	// Version is the protocol version. Currently 0.
 	Version uint8 `json:"version" jsonschema:"description=Protocol version,example=0"`
 
 	// Location identifies the storage backend.
 	Location Location `json:"location" jsonschema:"description=Storage backend identifier,enum=sia"`
 
-	// SourceClaimID is the ClaimID of the LBRY source claim this tracker
+	// SourceClaimID is the ClaimID of the LBRY source claim this urma
 	// mirrors. Encoded as 40-char lowercase hex in JSON. Used by clients to
-	// verify the tracker corresponds to the expected source content.
+	// verify the urma corresponds to the expected source content.
 	SourceClaimID SourceClaimID `json:"sourceClaimId" jsonschema:"description=Hex-encoded 20-byte ClaimID of the LBRY source claim,format=hex,pattern=[0-9a-f]{40},type=string"`
 
 	// DataKey is the encryption key for the file content (AES-256, 32 bytes).
@@ -124,10 +124,10 @@ type TrackerClaim struct {
 	LocationData json.RawMessage `json:"locationData" jsonschema:"description=Location-specific retrieval data. Structure depends on the location field"`
 }
 
-// IsTrackerClaim reports whether data is a valid envelope whose JSON payload
-// decodes as a TrackerClaim. It checks the envelope version byte and attempts
+// IsUrmaClaim reports whether data is a valid envelope whose JSON payload
+// decodes as a UrmaClaim. It checks the envelope version byte and attempts
 // to unmarshal the payload, but does not verify signatures.
-func IsTrackerClaim(data []byte) bool {
+func IsUrmaClaim(data []byte) bool {
 	claimJSON, _, _, _, err := DecodeEnvelope(data)
 	if err != nil {
 		return false

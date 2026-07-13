@@ -1,4 +1,4 @@
-# Tracker Claim Data Structures Specification
+# Urma claim Data Structures Specification
 
 **Status:** Draft
 **Version:** 0
@@ -6,7 +6,7 @@
 ## 1. Purpose
 
 This specification defines the core data structures and serialization formats
-for tracker protocol claims. The protocol is storage-agnostic: a `location`
+for Urma protocol claims. The protocol is storage-agnostic: a `location`
 field identifies the backing network, and `locationData` carries
 location-specific retrieval data as opaque JSON.
 
@@ -14,7 +14,7 @@ location-specific retrieval data as opaque JSON.
 
 ```mermaid
 graph TD
-    TC["TrackerClaim (on-chain, <=8192 byte claim script limit)"]
+    TC["UrmaClaim (on-chain, <=8192 byte claim script limit)"]
     TC -->|"locationData"| P0["ManifestPage 0 (off-chain)"]
     P0 -->|"data"| M0["Page payload (stream metadata + blobs)"]
     P0 -->|"next"| P1["ManifestPage 1"]
@@ -26,13 +26,13 @@ graph TD
 
 | Layer | Responsibility |
 |---|---|
-| Core | `TrackerClaim`, `ManifestPage`, serialization, size validation |
+| Core | `UrmaClaim`, `ManifestPage`, serialization, size validation |
 | Backend | Manifest types, page construction, encode/decode helpers |
 
 Core types use opaque JSON for location-specific data. Backend types are
 defined by their respective specifications.
 
-## 3. TrackerClaim
+## 3. UrmaClaim
 
 ### 3.1 Structure
 
@@ -74,7 +74,7 @@ The 20-byte ClaimID of the LBRY source claim, serialized as a 40-character
 lowercase hex string. Derived from the source claim's outpoint:
 `RIPEMD160(SHA256(tx:vout))`.
 
-Verification value: the client computes the tracker name from the source
+Verification value: the client computes the Urma name from the source
 ClaimID before querying, then validates this field on decode.
 
 #### dataKey
@@ -107,7 +107,7 @@ Backend-specific retrieval data as opaque JSON. The schema depends on
 
 ### 5.2 Page Chain
 
-The `TrackerClaim.locationData` field points to the first `ManifestPage` stored
+The `UrmaClaim.locationData` field points to the first `ManifestPage` stored
 off-chain. Each page contains:
 
 - `data`: backend-specific payload (defined by the backend specification)
@@ -139,10 +139,10 @@ page.
 The on-chain claim script (as measured by LBRY consensus, excluding the P2PKH
 script pubkey part) **MUST NOT** exceed `MaxClaimScriptSize` (8192 bytes). The
 claim script covers `OP_CLAIMNAME`, the claim name, the claim value (envelope
-+ JSON), and control opcodes. See *Tracker Claim Naming Specification*,
++ JSON), and control opcodes. See *Urma claim Naming Specification*,
 Section 6.2 for the full size budget breakdown.
 
-The TrackerClaim JSON payload is a subset of the claim value. The approximate
+The UrmaClaim JSON payload is a subset of the claim value. The approximate
 JSON payload composition:
 
 | Component | Size (bytes) |
@@ -178,9 +178,9 @@ Core types remain backend-agnostic. `ManifestPage` uses opaque JSON for both
 
 ## 8. Serialization
 
-TrackerClaim **MUST** be serialized as JSON. Implementations **SHOULD** provide:
+UrmaClaim **MUST** be serialized as JSON. Implementations **SHOULD** provide:
 
-- Encode: TrackerClaim -> JSON bytes
-- Decode: JSON bytes -> TrackerClaim
+- Encode: UrmaClaim -> JSON bytes
+- Decode: JSON bytes -> UrmaClaim
 - Size validation: verify total on-chain claim script size <= MaxClaimScriptSize (8192 bytes), accounting for script overhead, envelope overhead, value push prefix, and JSON payload
 - JSON Schema generation for validation

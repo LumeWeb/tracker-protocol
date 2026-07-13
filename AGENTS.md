@@ -2,7 +2,7 @@
 
 ## Module
 
-`go.lumeweb.com/tracker-protocol`
+`go.lumeweb.com/urma`
 
 Go 1.26.
 
@@ -25,8 +25,9 @@ go test -count=1 ./...
 ## Project Structure
 
 ```
-├── claim.go          # TrackerClaim, Location, constants
+├── claim.go          # UrmaClaim, SourceClaimID, MaxClaimScriptSize
 ├── codec.go          # EncodeClaim, DecodeClaim, ValidateClaimSize, GenerateSchema
+├── envelope.go       # Envelope encoding/decoding, signing, verification
 ├── manifest.go       # ManifestPage (core paging type)
 ├── sia/              # Sia-specific package
 │   ├── sia.go        # Manifest, ManifestBlobs, ManifestBlob, encode/decode helpers
@@ -56,9 +57,10 @@ go test -count=1 ./...
 - `go.sia.tech/core` — Sia core types
 - `go.sia.tech/indexd` — Slab/Sector types (`slabs.SlabSlice`, `slabs.PinnedSector`, `slabs.EncryptionKey`)
 - `github.com/invopop/jsonschema` — JSON Schema reflection from Go structs
+- `github.com/decred/dcrd/dcrec/secp256k1/v4` — ECDSA signing and verification
 
 ## Testing
 
 - Framework: standard `testing` package
 - Run: `go test -count=1 ./...`
-- Tests live alongside source: `claim_test.go`, `manifest_test.go`, `sia/sia_test.go`, `sia/pagebuilder_test.go`, `sia/schema_test.go`
+- Tests live alongside source: `claim_test.go`, `envelope_test.go`, `manifest_test.go`, `sia/sia_test.go`, `sia/pagebuilder_test.go`, `sia/schema_test.go`

@@ -4,12 +4,12 @@ import (
 	"encoding/json"
 	"testing"
 
-	"go.lumeweb.com/tracker-protocol"
+	"go.lumeweb.com/urma"
 	"go.sia.tech/indexd/slabs"
 )
 
 func TestPageBuilder_Plan(t *testing.T) {
-	pb := NewPageBuilder("test.mp4", "lbryfile", "test.mp4", trackerprotocol.SourceClaimID{0xa1}, [32]byte{0x01})
+	pb := NewPageBuilder("test.mp4", "lbryfile", "test.mp4", urma.SourceClaimID{0xa1}, [32]byte{0x01})
 
 	for i := 0; i < 9; i++ {
 		pb.Add(FromSlabSlice(makeSlabSlice(10, 15), "hash", "iv", 1000, i))
@@ -37,7 +37,7 @@ func TestPageBuilder_Plan(t *testing.T) {
 }
 
 func TestPageBuilder_Plan_ZeroBlobs(t *testing.T) {
-	pb := NewPageBuilder("test", "lbryfile", "test", trackerprotocol.SourceClaimID{0xa1}, [32]byte{0x01})
+	pb := NewPageBuilder("test", "lbryfile", "test", urma.SourceClaimID{0xa1}, [32]byte{0x01})
 	plans := pb.Plan(4)
 	if len(plans) != 1 {
 		t.Fatalf("expected 1 page for zero blobs, got %d", len(plans))
@@ -51,7 +51,7 @@ func TestPageBuilder_Plan_ZeroBlobs(t *testing.T) {
 }
 
 func TestPageBuilder_ManifestPage_FirstPage(t *testing.T) {
-	pb := NewPageBuilder("stream.mp4", "lbryfile", "stream.mp4", trackerprotocol.SourceClaimID{0xa1}, [32]byte{0x01})
+	pb := NewPageBuilder("stream.mp4", "lbryfile", "stream.mp4", urma.SourceClaimID{0xa1}, [32]byte{0x01})
 	plan := PagePlan{
 		Blobs:     []ManifestBlob{FromSlabSlice(makeSlabSlice(10, 15), "h1", "i1", 1000, 0)},
 		PageIndex: 0,
@@ -80,7 +80,7 @@ func TestPageBuilder_ManifestPage_FirstPage(t *testing.T) {
 }
 
 func TestPageBuilder_ManifestPage_ContinuationPage(t *testing.T) {
-	pb := NewPageBuilder("stream.mp4", "lbryfile", "stream.mp4", trackerprotocol.SourceClaimID{0xa1}, [32]byte{0x01})
+	pb := NewPageBuilder("stream.mp4", "lbryfile", "stream.mp4", urma.SourceClaimID{0xa1}, [32]byte{0x01})
 	plan := PagePlan{
 		Blobs: []ManifestBlob{
 			FromSlabSlice(makeSlabSlice(10, 15), "h2", "i2", 2000, 1),
@@ -114,22 +114,22 @@ func TestEstimateClaimSize(t *testing.T) {
 	dataKey := [32]byte{0x42}
 	root := makeSlabSlice(10, 15)
 
-	size, err := EstimateClaimSize(trackerprotocol.SourceClaimID{0xa1}, dataKey, root)
+	size, err := EstimateClaimSize(urma.SourceClaimID{0xa1}, dataKey, root)
 	if err != nil {
 		t.Fatalf("estimate: %v", err)
 	}
 	if size <= 0 {
 		t.Errorf("size should be positive, got %d", size)
 	}
-	if size > trackerprotocol.MaxClaimScriptSize {
-		t.Errorf("size %d exceeds max %d", size, trackerprotocol.MaxClaimScriptSize)
+	if size > urma.MaxClaimScriptSize {
+		t.Errorf("size %d exceeds max %d", size, urma.MaxClaimScriptSize)
 	}
 }
 
 func TestFitsClaim(t *testing.T) {
 	dataKey := [32]byte{0x42}
 	root := makeSlabSlice(10, 15)
-	if !FitsClaim(trackerprotocol.SourceClaimID{0xa1}, dataKey, root) {
+	if !FitsClaim(urma.SourceClaimID{0xa1}, dataKey, root) {
 		t.Error("expected claim to fit")
 	}
 }
@@ -138,15 +138,15 @@ func TestEstimateClaimSize_IncludesOverhead(t *testing.T) {
 	dataKey := [32]byte{0x42}
 	root := makeSlabSlice(10, 15)
 
-	size, err := EstimateClaimSize(trackerprotocol.SourceClaimID{0xa1}, dataKey, root)
+	size, err := EstimateClaimSize(urma.SourceClaimID{0xa1}, dataKey, root)
 	if err != nil {
 		t.Fatalf("estimate: %v", err)
 	}
 
 	// Size must account for script overhead (46) + push prefix + envelope overhead (1) + JSON
 	// A size that only included JSON would be ~= 300 bytes; with overhead it should be ~350+
-	if size < trackerprotocol.ClaimScriptOverhead {
-		t.Errorf("size %d does not include script overhead %d", size, trackerprotocol.ClaimScriptOverhead)
+	if size < urma.ClaimScriptOverhead {
+		t.Errorf("size %d does not include script overhead %d", size, urma.ClaimScriptOverhead)
 	}
 }
 
@@ -154,12 +154,12 @@ func TestEstimateClaimSizeSigned(t *testing.T) {
 	dataKey := [32]byte{0x42}
 	root := makeSlabSlice(10, 15)
 
-	unsigned, err := EstimateClaimSize(trackerprotocol.SourceClaimID{0xa1}, dataKey, root)
+	unsigned, err := EstimateClaimSize(urma.SourceClaimID{0xa1}, dataKey, root)
 	if err != nil {
 		t.Fatalf("unsigned estimate: %v", err)
 	}
 
-	signed, err := EstimateClaimSizeSigned(trackerprotocol.SourceClaimID{0xa1}, dataKey, root)
+	signed, err := EstimateClaimSizeSigned(urma.SourceClaimID{0xa1}, dataKey, root)
 	if err != nil {
 		t.Fatalf("signed estimate: %v", err)
 	}
@@ -178,13 +178,13 @@ func TestEstimateClaimSizeSigned(t *testing.T) {
 func TestFitsClaimSigned(t *testing.T) {
 	dataKey := [32]byte{0x42}
 	root := makeSlabSlice(10, 15)
-	if !FitsClaimSigned(trackerprotocol.SourceClaimID{0xa1}, dataKey, root) {
+	if !FitsClaimSigned(urma.SourceClaimID{0xa1}, dataKey, root) {
 		t.Error("expected signed claim to fit")
 	}
 }
 
 func TestPageBuilder_BuildChain_SinglePage(t *testing.T) {
-	pb := NewPageBuilder("single.mp4", "lbryfile", "single.mp4", trackerprotocol.SourceClaimID{0xa1}, [32]byte{0x42})
+	pb := NewPageBuilder("single.mp4", "lbryfile", "single.mp4", urma.SourceClaimID{0xa1}, [32]byte{0x42})
 	pb.Add(FromSlabSlice(makeSlabSlice(10, 15), "h1", "i1", 1000, 0))
 	pb.Add(FromSlabSlice(makeSlabSlice(10, 15), "h2", "i2", 2000, 1))
 
@@ -192,7 +192,7 @@ func TestPageBuilder_BuildChain_SinglePage(t *testing.T) {
 	result, err := pb.BuildChain(10, func(pageJSON []byte) (slabs.SlabSlice, error) {
 		uploadCalls++
 		// Verify the page has no Next (single page)
-		var page trackerprotocol.ManifestPage
+		var page urma.ManifestPage
 		if err := json.Unmarshal(pageJSON, &page); err != nil {
 			t.Fatalf("unmarshal page: %v", err)
 		}
@@ -210,7 +210,7 @@ func TestPageBuilder_BuildChain_SinglePage(t *testing.T) {
 	if result.PageCount != 1 {
 		t.Errorf("page count: %d", result.PageCount)
 	}
-	if result.Claim.Location != trackerprotocol.LocationSia {
+	if result.Claim.Location != urma.LocationSia {
 		t.Errorf("location: %s", result.Claim.Location)
 	}
 	if result.Claim.DataKey != [32]byte{0x42} {
@@ -219,7 +219,7 @@ func TestPageBuilder_BuildChain_SinglePage(t *testing.T) {
 }
 
 func TestPageBuilder_BuildChain_MultiPage(t *testing.T) {
-	pb := NewPageBuilder("multi.mp4", "lbryfile", "multi.mp4", trackerprotocol.SourceClaimID{0xa1}, [32]byte{0x42})
+	pb := NewPageBuilder("multi.mp4", "lbryfile", "multi.mp4", urma.SourceClaimID{0xa1}, [32]byte{0x42})
 
 	for i := 0; i < 9; i++ {
 		pb.Add(FromSlabSlice(makeSlabSlice(10, 15), "h", "i", 1000, i))
@@ -229,7 +229,7 @@ func TestPageBuilder_BuildChain_MultiPage(t *testing.T) {
 	var pageNextFlags []bool
 	result, err := pb.BuildChain(4, func(pageJSON []byte) (slabs.SlabSlice, error) {
 		uploadCalls++
-		var page trackerprotocol.ManifestPage
+		var page urma.ManifestPage
 		if err := json.Unmarshal(pageJSON, &page); err != nil {
 			t.Fatalf("unmarshal page: %v", err)
 		}
@@ -258,7 +258,7 @@ func TestPageBuilder_BuildChain_MultiPage(t *testing.T) {
 }
 
 func TestPageBuilder_BuildChain_NilUpload(t *testing.T) {
-	pb := NewPageBuilder("test", "lbryfile", "test", trackerprotocol.SourceClaimID{0xa1}, [32]byte{0x01})
+	pb := NewPageBuilder("test", "lbryfile", "test", urma.SourceClaimID{0xa1}, [32]byte{0x01})
 	pb.Add(FromSlabSlice(makeSlabSlice(10, 15), "h", "i", 1000, 0))
 	_, err := pb.BuildChain(10, nil)
 	if err == nil {
@@ -267,7 +267,7 @@ func TestPageBuilder_BuildChain_NilUpload(t *testing.T) {
 }
 
 func TestPageBuilder_BuildChain_ZeroBlobs(t *testing.T) {
-	pb := NewPageBuilder("empty", "lbryfile", "empty", trackerprotocol.SourceClaimID{0xa1}, [32]byte{0x01})
+	pb := NewPageBuilder("empty", "lbryfile", "empty", urma.SourceClaimID{0xa1}, [32]byte{0x01})
 	result, err := pb.BuildChain(10, func(pageJSON []byte) (slabs.SlabSlice, error) {
 		return makeSlabSlice(10, 15), nil
 	})
@@ -280,7 +280,7 @@ func TestPageBuilder_BuildChain_ZeroBlobs(t *testing.T) {
 }
 
 func TestPageBuilder_BlobCount(t *testing.T) {
-	pb := NewPageBuilder("test", "lbryfile", "test", trackerprotocol.SourceClaimID{0xa1}, [32]byte{0x01})
+	pb := NewPageBuilder("test", "lbryfile", "test", urma.SourceClaimID{0xa1}, [32]byte{0x01})
 	if pb.BlobCount() != 0 {
 		t.Errorf("expected 0 blobs, got %d", pb.BlobCount())
 	}

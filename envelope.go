@@ -1,4 +1,4 @@
-package trackerprotocol
+package urma
 
 import (
 	"crypto/sha256"
@@ -11,16 +11,16 @@ import (
 	"github.com/decred/dcrd/dcrec/secp256k1/v4/ecdsa"
 )
 
-// trackerNamePrefix is the prefix for all tracker claim names.
-const trackerNamePrefix = "t-"
+// urmaNamePrefix is the prefix for all urma claim names.
+const urmaNamePrefix = "u-"
 
 // Claim script opcodes and structural sizes.
 const (
 	// OpcodeClaimName is the byte size of the OP_CLAIMNAME opcode.
 	OpcodeClaimName = 1
 
-	// ClaimNamePushPrefix is the push prefix size for a tracker claim name.
-	// Tracker names are 42 bytes (< 76), so the canonical push is 1 byte.
+	// ClaimNamePushPrefix is the push prefix size for a urma claim name.
+	// urma names are 42 bytes (< 76), so the canonical push is 1 byte.
 	ClaimNamePushPrefix = 1
 
 	// Opcode2Drop is the byte size of the OP_2DROP opcode.
@@ -86,20 +86,20 @@ const (
 	// envelope: 1 version + 20 channel ClaimID + 64 signature.
 	EnvelopeSignedOverhead = EnvelopeVersionLen + ChannelClaimIDLen + SignatureLen
 
-	// ClaimNameLen is the length of a tracker claim name: "t-" prefix + 40 hex
+	// ClaimNameLen is the length of a urma claim name: "u-" prefix + 40 hex
 	// chars (20-byte SourceClaimID). Derived from SourceClaimIDLen so it stays
 	// in sync if the ClaimID length ever changes.
-	ClaimNameLen = len(trackerNamePrefix) + SourceClaimIDLen*2
+	ClaimNameLen = len(urmaNamePrefix) + SourceClaimIDLen*2
 
 	// ClaimScriptOverhead is the fixed overhead in a claim script excluding
 	// the value push and value itself. A claim name script is:
 	//   OP_CLAIMNAME <name> <value> OP_2DROP OP_DROP
-	// For a ClaimNameLen-byte tracker name, this is:
+	// For a ClaimNameLen-byte urma name, this is:
 	//   OpcodeClaimName + ClaimNamePushPrefix + ClaimNameLen + Opcode2Drop + OpcodeDrop
 	ClaimScriptOverhead = OpcodeClaimName + ClaimNamePushPrefix + ClaimNameLen + Opcode2Drop + OpcodeDrop
 )
 
-// EncodeUnsignedEnvelope wraps a TrackerClaim JSON payload in an unsigned
+// EncodeUnsignedEnvelope wraps a UrmaClaim JSON payload in an unsigned
 // envelope: [0x00][JSON bytes].
 func EncodeUnsignedEnvelope(claimJSON []byte) []byte {
 	out := make([]byte, EnvelopeUnsignedOverhead+len(claimJSON))
@@ -108,7 +108,7 @@ func EncodeUnsignedEnvelope(claimJSON []byte) []byte {
 	return out
 }
 
-// EncodeSignedEnvelope wraps a TrackerClaim JSON payload in a signed envelope:
+// EncodeSignedEnvelope wraps a UrmaClaim JSON payload in a signed envelope:
 // [0x01][20-byte channel ClaimID][64-byte signature][JSON bytes].
 //
 // The signature is a compact ECDSA (r||s) signature over the SECP256k1 curve.
@@ -134,7 +134,7 @@ func EncodeSignedEnvelope(claimJSON []byte, channelClaimID [ChannelClaimIDLen]by
 }
 
 // DecodeEnvelope unwraps a claim value envelope. It returns:
-//   - The TrackerClaim JSON payload bytes
+//   - The UrmaClaim JSON payload bytes
 //   - The envelope version byte (0x00 or 0x01)
 //   - For signed envelopes: the channel ClaimID and 64-byte signature
 //   - For signed envelopes: the remaining bytes for digest computation
@@ -168,7 +168,7 @@ func DecodeEnvelope(data []byte) (claimJSON []byte, version byte, channelClaimID
 //
 // txInput0Hash is the OutpointLen-byte OutPoint of the first transaction input.
 // channelClaimID is the ChannelClaimIDLen-byte ClaimID of the signing channel.
-// claimJSONBytes is the raw TrackerClaim JSON payload.
+// claimJSONBytes is the raw UrmaClaim JSON payload.
 func ComputeSignatureDigest(txInput0Hash [OutpointLen]byte, channelClaimID [ChannelClaimIDLen]byte, claimJSONBytes []byte) [32]byte {
 	h := sha256.New()
 	h.Write(txInput0Hash[:])
@@ -185,7 +185,7 @@ func ComputeSignatureDigest(txInput0Hash [OutpointLen]byte, channelClaimID [Chan
 //  1. Read byte 0 (must be 0x01)
 //  2. Read bytes 1-20: channel ClaimID
 //  3. Read bytes 21-84: ECDSA signature
-//  4. Read bytes 85+: TrackerClaim JSON payload
+//  4. Read bytes 85+: UrmaClaim JSON payload
 //  5. Channel public key provided by caller (fetched from channel claim)
 //  6. Recompute SHA-256(tx_input_0_hash || channel_claim_id || json_bytes)
 //  7. Verify signature against digest using channel public key
@@ -253,9 +253,9 @@ func IsSignedEnvelope(data []byte) bool {
 	return len(data) >= EnvelopeSignedOverhead && data[EnvelopeVersionOffset] == EnvelopeSigned
 }
 
-// TrackerClaimName returns the on-chain claim name for a given source ClaimID.
-// The format is "t-" followed by the 40-character lowercase hex encoding of
+// UrmaClaimName returns the on-chain claim name for a given source ClaimID.
+// The format is "u-" followed by the 40-character lowercase hex encoding of
 // the 20-byte SourceClaimID, matching the spec's unified naming scheme.
-func TrackerClaimName(sourceClaimID SourceClaimID) string {
-	return trackerNamePrefix + hex.EncodeToString(sourceClaimID[:])
+func UrmaClaimName(sourceClaimID SourceClaimID) string {
+	return urmaNamePrefix + hex.EncodeToString(sourceClaimID[:])
 }

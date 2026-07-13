@@ -1,8 +1,8 @@
-package trackerprotocol
+package urma
 
 import "encoding/json"
 
-// ManifestPage is a page in the manifest chain. The TrackerClaim's
+// ManifestPage is a page in the manifest chain. The UrmaClaim's
 // LocationData is a location-specific pointer (e.g. a Sia SlabSlice) to the
 // first ManifestPage object stored off-chain.
 //

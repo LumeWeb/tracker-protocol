@@ -5,12 +5,12 @@ import (
 	"fmt"
 
 	"github.com/invopop/jsonschema"
-	"go.lumeweb.com/tracker-protocol"
+	"go.lumeweb.com/urma"
 )
 
 // GenerateSchema generates a combined JSON Schema document covering all
-// Sia-specific types used in the tracker protocol: Manifest, ManifestBlobs,
-// and ManifestBlob. The core TrackerClaim schema is also included for
+// Sia-specific types used in the urma protocol: Manifest, ManifestBlobs,
+// and ManifestBlob. The core UrmaClaim schema is also included for
 // completeness.
 //
 // The output is a self-contained JSON Schema (no $ref to external documents)
@@ -22,10 +22,10 @@ func GenerateSchema() ([]byte, error) {
 	}
 
 	schema := reflector.Reflect(&struct {
-		Claim         trackerprotocol.TrackerClaim `json:"claim"`
-		Manifest      Manifest                     `json:"manifest"`
-		ManifestBlobs ManifestBlobs                `json:"manifestBlobs"`
-		ManifestBlob  ManifestBlob                 `json:"manifestBlob"`
+		Claim         urma.UrmaClaim `json:"claim"`
+		Manifest      Manifest       `json:"manifest"`
+		ManifestBlobs ManifestBlobs  `json:"manifestBlobs"`
+		ManifestBlob  ManifestBlob   `json:"manifestBlob"`
 	}{})
 
 	return json.MarshalIndent(schema, "", "  ")
@@ -64,9 +64,9 @@ func GenerateManifestBlobSchema() ([]byte, error) {
 	return json.MarshalIndent(schema, "", "  ")
 }
 
-// GenerateClaimSchema generates a JSON Schema for the core TrackerClaim type.
+// GenerateClaimSchema generates a JSON Schema for the core UrmaClaim type.
 func GenerateClaimSchema() ([]byte, error) {
-	return trackerprotocol.GenerateSchema()
+	return urma.GenerateSchema()
 }
 
 // WriteSchema writes all generated schemas to a map keyed by type name.

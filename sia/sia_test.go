@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"go.lumeweb.com/tracker-protocol"
+	"go.lumeweb.com/urma"
 	"go.sia.tech/indexd/slabs"
 )
 
@@ -32,17 +32,17 @@ func makeSlabSlice(minShards, totalShards uint) slabs.SlabSlice {
 func TestEncodeDecodeClaim(t *testing.T) {
 	dataKey := [32]byte{0x42}
 	root := makeSlabSlice(10, 15)
-	sourceID := trackerprotocol.SourceClaimID{0xa1, 0xb2, 0xc3}
+	sourceID := urma.SourceClaimID{0xa1, 0xb2, 0xc3}
 
 	claim, err := EncodeClaim(sourceID, dataKey, root)
 	if err != nil {
 		t.Fatalf("encode claim: %v", err)
 	}
 
-	if claim.Version != trackerprotocol.ProtocolVersion {
-		t.Errorf("version: %d vs %d", claim.Version, trackerprotocol.ProtocolVersion)
+	if claim.Version != urma.ProtocolVersion {
+		t.Errorf("version: %d vs %d", claim.Version, urma.ProtocolVersion)
 	}
-	if claim.Location != trackerprotocol.LocationSia {
+	if claim.Location != urma.LocationSia {
 		t.Errorf("location: %s", claim.Location)
 	}
 	if claim.SourceClaimID != sourceID {
@@ -68,9 +68,9 @@ func TestEncodeDecodeClaim(t *testing.T) {
 }
 
 func TestDecodeRootSlab_WrongLocation(t *testing.T) {
-	claim := trackerprotocol.TrackerClaim{
-		Version:      trackerprotocol.ProtocolVersion,
-		Location:     trackerprotocol.Location("bogus"),
+	claim := urma.UrmaClaim{
+		Version:      urma.ProtocolVersion,
+		Location:     urma.Location("bogus"),
 		DataKey:      [32]byte{},
 		LocationData: []byte(`{}`),
 	}
@@ -204,7 +204,7 @@ func TestEncodeDecodeManifestBlobsPage(t *testing.T) {
 }
 
 func TestDecodeNextSlab_NoNext(t *testing.T) {
-	page := trackerprotocol.ManifestPage{
+	page := urma.ManifestPage{
 		Data: json.RawMessage(`{}`),
 	}
 
