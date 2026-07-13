@@ -116,20 +116,20 @@ func FromSlabSlice(ss slabs.SlabSlice, blobHash, iv string, blobLength, blobNum 
 
 // EncodeClaim creates a TrackerClaim whose LocationData is a SlabSlice
 // pointing to the first ManifestPage object on Sia. The caller provides the
-// root SlabSlice (obtained after uploading the first manifest page to Sia).
-//
-// The dataKey is the LBRY stream encryption key (stored in the claim for
-// the consumer to decrypt blob content after retrieval).
-func EncodeClaim(dataKey [32]byte, root slabs.SlabSlice) (trackerprotocol.TrackerClaim, error) {
+// sourceClaimID (ClaimID of the LBRY source claim), the dataKey (LBRY stream
+// encryption key), and the root SlabSlice (obtained after uploading the first
+// manifest page to Sia).
+func EncodeClaim(sourceClaimID trackerprotocol.SourceClaimID, dataKey [32]byte, root slabs.SlabSlice) (trackerprotocol.TrackerClaim, error) {
 	ld, err := json.Marshal(root)
 	if err != nil {
 		return trackerprotocol.TrackerClaim{}, fmt.Errorf("marshal root slab: %w", err)
 	}
 	claim := trackerprotocol.TrackerClaim{
-		Version:      trackerprotocol.ProtocolVersion,
-		Location:     trackerprotocol.LocationSia,
-		DataKey:      dataKey,
-		LocationData: ld,
+		Version:       trackerprotocol.ProtocolVersion,
+		Location:      trackerprotocol.LocationSia,
+		SourceClaimID: sourceClaimID,
+		DataKey:       dataKey,
+		LocationData:  ld,
 	}
 	if err := trackerprotocol.ValidateClaimSize(claim); err != nil {
 		return trackerprotocol.TrackerClaim{}, err

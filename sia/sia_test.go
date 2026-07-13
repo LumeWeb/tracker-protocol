@@ -32,8 +32,9 @@ func makeSlabSlice(minShards, totalShards uint) slabs.SlabSlice {
 func TestEncodeDecodeClaim(t *testing.T) {
 	dataKey := [32]byte{0x42}
 	root := makeSlabSlice(10, 15)
+	sourceID := trackerprotocol.SourceClaimID{0xa1, 0xb2, 0xc3}
 
-	claim, err := EncodeClaim(dataKey, root)
+	claim, err := EncodeClaim(sourceID, dataKey, root)
 	if err != nil {
 		t.Fatalf("encode claim: %v", err)
 	}
@@ -43,6 +44,9 @@ func TestEncodeDecodeClaim(t *testing.T) {
 	}
 	if claim.Location != trackerprotocol.LocationSia {
 		t.Errorf("location: %s", claim.Location)
+	}
+	if claim.SourceClaimID != sourceID {
+		t.Errorf("sourceClaimID mismatch: %x", claim.SourceClaimID)
 	}
 	if claim.DataKey != dataKey {
 		t.Error("dataKey mismatch")

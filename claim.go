@@ -22,9 +22,11 @@ import (
 // ProtocolVersion is the current version of the tracker protocol.
 const ProtocolVersion uint8 = 0
 
-// MaxClaimSize is the maximum serialized size of a TrackerClaim, per LBRY
-// consensus rules. A claim that exceeds this size is invalid.
-const MaxClaimSize = 8192
+// MaxClaimScriptSize is the maximum on-chain claim script size in bytes, per
+// LBRY consensus rules. This covers the full claim script (OP_CLAIMNAME,
+// name, value, OP_2DROP, OP_DROP) excluding the P2PKH script pubkey part.
+// A claim script that exceeds this size is invalid.
+const MaxClaimScriptSize = 8192
 
 // Location identifies the storage backend for a claim.
 type Location string
@@ -120,4 +122,16 @@ type TrackerClaim struct {
 	// depends on Location. The consumer decodes this using the appropriate
 	// location package (e.g. slabs.SlabSlice for "sia").
 	LocationData json.RawMessage `json:"locationData" jsonschema:"description=Location-specific retrieval data. Structure depends on the location field"`
+}
+
+// IsTrackerClaim reports whether data is a valid envelope whose JSON payload
+// decodes as a TrackerClaim. It checks the envelope version byte and attempts
+// to unmarshal the payload, but does not verify signatures.
+func IsTrackerClaim(data []byte) bool {
+	claimJSON, _, _, _, err := DecodeEnvelope(data)
+	if err != nil {
+		return false
+	}
+	_, err = DecodeClaim(claimJSON)
+	return err == nil
 }
